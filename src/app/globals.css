@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --win-gray: #c0c0c0;
+  --win-blue: #000080;
+}
+
+body {
+  color: black;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+@layer components {
+  /* Standard Window Container */
+  .retro-window {
+    background-color: #c0c0c0;
+    color: black;
+    position: relative;
+    box-shadow: 2px 2px 0px black;
+    border-top: 2px solid white;
+    border-left: 2px solid white;
+    border-right: 2px solid #808080;
+    border-bottom: 2px solid #808080;
+  }
+
+  /* Blue Header Bar */
+  .retro-header {
+    background-color: #000080;
+    color: white;
+    padding: 0.25rem 0.75rem; /* px-3 py-1 */
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+    font-size: 1rem;
+    letter-spacing: 0.05em;
+  }
+
+  /* Button Style */
+  .retro-btn {
+    background-color: #c0c0c0;
+    padding: 0.25rem 1rem; /* px-4 py-1 */
+    color: black;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    /* 3D Bevel Effect */
+    border-top: 2px solid white;
+    border-left: 2px solid white;
+    border-right: 2px solid black;
+    border-bottom: 2px solid black;
+    box-shadow: 1px 1px 0px black;
+  }
+  
+  .retro-btn:active {
+    transform: translateY(1px);
+    border-top: 2px solid black;
+    border-left: 2px solid black;
+    border-right: 2px solid white;
+    border-bottom: 2px solid white;
+    box-shadow: none;
+  }
+
+  /* Inset Panel (for lists/inventory slots) */
+  .retro-inset {
+    background-color: white;
+    border-width: 2px;
+    border-style: solid;
+    border-top-color: #808080;
+    border-left-color: #808080;
+    border-right-color: white;
+    border-bottom-color: white;
+  }
+}

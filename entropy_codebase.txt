@@ -1,0 +1,2873 @@
+ENTROPY CODEBASE DUMP - 2025-11-30T18:46:00.595Z
+
+
+--- START FILE: src/app/ClientProviders.tsx ---
+"use client";
+
+import { GameStateProvider } from "@/context/GameStateContext";
+
+export function ClientProviders({ children }: { children: React.ReactNode }) {
+  return <GameStateProvider>{children}</GameStateProvider>;
+}
+
+--- END FILE: src/app/ClientProviders.tsx ---
+
+--- START FILE: src/app/globals.css ---
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --win-gray: #c0c0c0;
+  --win-blue: #000080;
+}
+
+body {
+  background-color: #008080; /* Classic Teal */
+  color: black;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+@layer components {
+  /* Standard Window Container */
+  .retro-window {
+    background-color: #c0c0c0;
+    color: black;
+    position: relative;
+    box-shadow: 2px 2px 0px black;
+    border-top: 2px solid white;
+    border-left: 2px solid white;
+    border-right: 2px solid #808080;
+    border-bottom: 2px solid #808080;
+  }
+
+  /* Blue Header Bar */
+  .retro-header {
+    background-color: #000080;
+    color: white;
+    padding: 0.25rem 0.75rem; /* px-3 py-1 */
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+    font-size: 1rem;
+    letter-spacing: 0.05em;
+  }
+
+  /* Button Style */
+  .retro-btn {
+    background-color: #c0c0c0;
+    padding: 0.25rem 1rem; /* px-4 py-1 */
+    color: black;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    /* 3D Bevel Effect */
+    border-top: 2px solid white;
+    border-left: 2px solid white;
+    border-right: 2px solid black;
+    border-bottom: 2px solid black;
+    box-shadow: 1px 1px 0px black;
+  }
+  
+  .retro-btn:active {
+    transform: translateY(1px);
+    border-top: 2px solid black;
+    border-left: 2px solid black;
+    border-right: 2px solid white;
+    border-bottom: 2px solid white;
+    box-shadow: none;
+  }
+
+  /* Inset Panel (for lists/inventory slots) */
+  .retro-inset {
+    background-color: white;
+    border-width: 2px;
+    border-style: solid;
+    border-top-color: #808080;
+    border-left-color: #808080;
+    border-right-color: white;
+    border-bottom-color: white;
+  }
+}
+--- END FILE: src/app/globals.css ---
+
+--- START FILE: src/app/inventory/page.tsx ---
+'use client';
+
+import { useState } from 'react';
+import { useGameState } from '@/context/GameStateContext';
+import InventoryCard from '@/components/InventoryCard';
+import Avatar from '@/components/Avatar';
+
+type Tab = 'cosmetic' | 'badge' | 'modifier' | 'sets' | 'all';
+type Sort = 'rarity' | 'type' | 'set';
+
+export default function InventoryPage({ isOverlay, onClose }: { isOverlay?: boolean, onClose?: () => void }) {
+  const { inventory, equipItem, unequipItem, profile, cosmeticSets, claimedSets, claimSetBonus, shopItems } = useGameState();
+  const [activeTab, setActiveTab] = useState<Tab>('cosmetic');
+  const [sortMethod, setSortMethod] = useState<Sort>('rarity');
+  
+  const [expandedSetId, setExpandedSetId] = useState<string | null>(null);
+  const [showBadgePicker, setShowBadgePicker] = useState(false);
+  
+  const ownedBadges = inventory.filter(inv => inv.item_details?.type === 'badge');
+
+  // Helper for Sorting Rarity
+  const getRarityWeight = (r?: string) => {
+      if (r === 'entropic') return 5;
+      if (r === 'ultra_rare') return 4;
+      if (r === 'rare') return 3;
+      if (r === 'uncommon') return 2;
+      return 1;
+  };
+
+  // Helper for Sorting Slots (Head -> Face -> Body)
+  const getSlotWeight = (slot?: string) => {
+      if (slot === 'head') return 1;
+      if (slot === 'face') return 2;
+      if (slot === 'body') return 3;
+      if (slot === 'badge') return 4;
+      return 5; 
+  };
+
+  const filteredItems = inventory.filter(inv => {
+    if (activeTab === 'all' || activeTab === 'sets') return true;
+    const type = inv.item_details?.type || 'cosmetic';
+    return type === activeTab;
+  }).sort((a, b) => {
+      const itemA = a.item_details;
+      const itemB = b.item_details;
+      if (!itemA || !itemB) return 0;
+
+      if (sortMethod === 'rarity') {
+          return getRarityWeight(itemB.rarity) - getRarityWeight(itemA.rarity);
+      }
+      if (sortMethod === 'type') {
+          // Sort by Slot Hierarchy instead of alphabet
+          const slotDiff = getSlotWeight(itemA.slot) - getSlotWeight(itemB.slot);
+          if (slotDiff !== 0) return slotDiff;
+          return itemA.name.localeCompare(itemB.name);
+      }
+      return 0; 
+  });
+
+  if (!profile) return null;
+
+  return (
+    <div style={{ minHeight: isOverlay ? '100%' : '100vh', display: 'flex', justifyContent: 'center', alignItems: isOverlay ? 'center' : 'flex-start', paddingTop: isOverlay ? '0' : '80px', paddingBottom: isOverlay ? '0' : '40px', paddingLeft: '20px', paddingRight: '20px' }}>
+      
+      {/* BADGE PICKER MODAL */}
+      {showBadgePicker && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="retro-window" style={{ width: '400px', backgroundColor: '#c0c0c0' }}>
+                <div className="retro-header">
+                    <span>Select Badge</span>
+                    <button onClick={() => setShowBadgePicker(false)} className="retro-btn" style={{ padding: '0 6px' }}>X</button>
+                </div>
+                <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {ownedBadges.length > 0 ? (
+                        ownedBadges.map(badge => (
+                            <button key={badge.id} onClick={() => { if (badge.item_details) equipItem(badge.item_details); setShowBadgePicker(false); }} className="retro-btn" style={{ justifyContent: 'flex-start', padding: '10px', gap: '10px' }}>
+                                <span style={{ fontSize: '20px' }}>{badge.item_details?.image_url}</span>
+                                <span>{badge.item_details?.name}</span>
+                            </button>
+                        ))
+                    ) : <p style={{ padding: '20px', textAlign: 'center', color: '#666' }}>No badges found.</p>}
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* MAIN WINDOW */}
+      <div className="retro-window" style={{ width: '100%', maxWidth: '1000px', height: '80vh', display: 'flex', flexDirection: 'column' }}>
+        
+        <div className="retro-header">
+            <span>Inventory Manager</span>
+            <div style={{ display: 'flex', gap: '4px' }}>
+                <div className="retro-btn" onClick={onClose} style={{ padding: '0 6px', fontSize: '10px', cursor: 'pointer' }}>_</div>
+                <div className="retro-btn" onClick={onClose} style={{ padding: '0 6px', fontSize: '10px', backgroundColor: '#ef4444', color: 'white', cursor: 'pointer' }}>X</div>
+            </div>
+        </div>
+
+        <div style={{ flex: 1, display: 'flex', backgroundColor: '#c0c0c0', padding: '8px', gap: '8px', overflow: 'hidden' }}>
+            
+            {/* LEFT COLUMN */}
+            <div style={{ width: '320px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '16px', paddingRight: '16px', borderRight: '1px solid #808080', boxShadow: '1px 0 0 white' }}>
+                <div className="retro-inset" style={{ backgroundColor: 'white', padding: '20px', display: 'flex', justifyContent: 'center' }}>
+                    <Avatar gender={profile.gender} skinTone={profile.skin_tone} eyeColor={profile.eye_color} hairColor={profile.hair_color} hairStyle={profile.hair_style} equippedImage={profile.equipped_image} equippedHead={profile.equipped_head} equippedBody={profile.equipped_body} size={160} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <VisualSlot label="HEAD" profile={profile} part="head" />
+                    <VisualSlot label="FACE" profile={profile} part="face" />
+                    <VisualSlot label="BODY" profile={profile} part="body" />
+                    <div onClick={() => setShowBadgePicker(true)} style={{ cursor: 'pointer' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#4b5563' }}>BADGE</span>
+                            <div className="retro-inset" style={{ height: '60px', backgroundColor: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
+                                {profile.equipped_badge || <span style={{ fontSize: '10px', color: '#d1d5db' }}>EMPTY</span>}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* RIGHT COLUMN */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                    {/* Tabs */}
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                        {['cosmetic', 'badge', 'modifier', 'sets', 'all'].map((tab) => (
+                            <button key={tab} onClick={() => setActiveTab(tab as Tab)} style={{ padding: '6px 16px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', borderTop: '2px solid white', borderLeft: '2px solid white', borderRight: '2px solid #808080', backgroundColor: activeTab === tab ? '#c0c0c0' : '#a0a0a0', color: activeTab === tab ? 'black' : '#e0e0e0', transform: activeTab === tab ? 'translateY(2px)' : 'none', position: 'relative', zIndex: activeTab === tab ? 10 : 0 }}>
+                                {tab.replace('_', ' ')}
+                            </button>
+                        ))}
+                    </div>
+                    {/* Sort Dropdown */}
+                    <select 
+                        value={sortMethod}
+                        onChange={(e) => setSortMethod(e.target.value as Sort)}
+                        style={{ fontSize: '12px', padding: '4px', backgroundColor: '#c0c0c0', border: '1px solid #808080' }}
+                    >
+                        <option value="rarity">Sort: Rarity (High-Low)</option>
+                        <option value="type">Sort: Slot (Head-Body)</option>
+                    </select>
+                </div>
+
+                <div className="retro-inset" style={{ flex: 1, backgroundColor: 'white', padding: '16px', overflowY: 'auto' }}>
+                    {activeTab === 'sets' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {cosmeticSets.map(set => {
+                                const isClaimed = claimedSets.includes(set.id);
+                                const isExpanded = expandedSetId === set.id;
+                                const ownedCount = set.items.filter(reqId => inventory.some(i => i.item_id === reqId)).length;
+                                const totalCount = set.items.length;
+                                const isComplete = ownedCount === totalCount;
+
+                                return (
+                                    <div key={set.id} className="retro-window" style={{ padding: 0 }}>
+                                        <div onClick={() => setExpandedSetId(isExpanded ? null : set.id)} style={{ padding: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: isClaimed ? '#dcfce7' : '#c0c0c0', borderBottom: isExpanded ? '2px solid #808080' : 'none' }}>
+                                            <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{set.is_hidden && !isComplete ? "??? (HIDDEN SET)" : set.name} {isClaimed && " (COMPLETED)"}</div>
+                                            <div style={{ fontSize: '12px' }}>{isClaimed ? "claimed" : `${ownedCount}/${totalCount}`} {isExpanded ? '▲' : '▼'}</div>
+                                        </div>
+                                        {isExpanded && (
+                                            <div style={{ padding: '10px', backgroundColor: '#f3f4f6' }}>
+                                                <p style={{ fontSize: '12px', marginBottom: '10px', fontStyle: 'italic' }}>Reward: <b>{set.xp_reward} XP</b></p>
+                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '10px', marginBottom: '10px' }}>
+                                                    {set.items.map(reqId => {
+                                                        const isOwned = inventory.some(i => i.item_id === reqId);
+                                                        const itemDetails = shopItems.find(i => i.id === reqId) || inventory.find(i => i.item_id === reqId)?.item_details;
+                                                        const showName = !set.is_hidden || isOwned;
+                                                        return (
+                                                            <div key={reqId} style={{ border: '1px solid #ccc', padding: '8px', backgroundColor: isOwned ? 'white' : '#e5e5e5', opacity: isOwned ? 1 : 0.5, fontSize: '10px', textAlign: 'center' }}>
+                                                                <div style={{ fontSize: '20px', marginBottom: '4px' }}>{showName && itemDetails ? itemDetails.image_url : "🔒"}</div>
+                                                                <div>{showName && itemDetails ? itemDetails.name : "???"}</div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                                {!isClaimed && (
+                                                    <button onClick={(e) => { e.stopPropagation(); claimSetBonus(set.id); }} disabled={!isComplete} className="retro-btn" style={{ width: '100%', backgroundColor: isComplete ? '#2563eb' : '#ccc', color: isComplete ? 'white' : '#666', cursor: isComplete ? 'pointer' : 'not-allowed' }}>
+                                                        {isComplete ? 'CLAIM BONUS' : 'COLLECT ALL TO UNLOCK'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        filteredItems.length > 0 ? (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '16px' }}>
+                                {filteredItems.map((userItem) => {
+                                    const details = userItem.item_details;
+                                    if (!details) return null;
+                                    let isEquipped = false;
+                                    if (details.slot === 'head' && profile.equipped_head === details.name) isEquipped = true;
+                                    if (details.slot === 'face' && profile.equipped_image === details.name) isEquipped = true;
+                                    if (details.slot === 'badge' && profile.equipped_badge === details.image_url) isEquipped = true;
+                                    if (details.slot === 'body' && (profile.equipped_body === details.name || profile.equipped_body === details.image_url)) isEquipped = true;
+
+                                    return (
+                                        <InventoryCard
+                                          key={userItem.id}
+                                          userItem={userItem}
+                                          isEquipped={isEquipped}
+                                          onEquip={() => equipItem(details)}
+                                          onUnequip={() => unequipItem(details.slot || 'face')}
+                                          profile={profile}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        ) : <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}><span style={{ fontSize: '48px', marginBottom: '8px' }}>📁</span><p style={{ fontWeight: 'bold' }}>This folder is empty.</p></div>
+                    )}
+                </div>
+            </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// NEW COMPONENT: Visual Slot using isolated Avatar with smart centering
+// Updated Visual Slot: Adjusted Transforms for perfect centering
+// Updated Visual Slot: Adjusted Transforms
+function VisualSlot({ label, profile, part }: { label: string, profile: any, part: 'head'|'face'|'body' }) {
+    const isEmpty = part === 'head' ? !profile.equipped_head : part === 'face' ? !profile.equipped_image : !profile.equipped_body;
+
+    // --- ALIGNMENT FIX ---
+    // The Shirt renders at the bottom of the 64px grid (y=40 to y=64).
+    // We scale it up (2x) and pull it UP (-25%) to center the chest area.
+    
+    let transformStyle = 'scale(1.2) translateY(5%)'; 
+    
+    if (part === 'body') {
+        transformStyle = 'scale(2) translateY(-25%)'; // Pulls bottom up to center
+    } 
+    else if (part === 'head') {
+        transformStyle = 'scale(2) translateY(15%)';  // Pulls top down to center
+    } 
+    else if (part === 'face') {
+        transformStyle = 'scale(3) translateY(5%)';   // Zooms in on eyes
+    }
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#4b5563' }}>{label}</span>
+            <div className="retro-inset" style={{ 
+                height: '60px', 
+                backgroundColor: '#f9fafb', 
+                display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                overflow: 'hidden', padding: '4px' 
+            }}>
+                {isEmpty ? (
+                    <span style={{ fontSize: '10px', color: '#d1d5db', textTransform: 'uppercase', letterSpacing: '1px' }}>Empty</span>
+                ) : (
+                    <div style={{ transform: transformStyle, transformOrigin: 'center center', width: '50px', height: '50px' }}>
+                        <Avatar 
+                            gender={profile.gender} skinTone={profile.skin_tone} eyeColor={profile.eye_color} hairColor={profile.hair_color} hairStyle={profile.hair_style} 
+                            equippedImage={profile.equipped_image} equippedHead={profile.equipped_head} equippedBody={profile.equipped_body} 
+                            size={50}
+                            renderMode={part} 
+                        />
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+--- END FILE: src/app/inventory/page.tsx ---
+
+--- START FILE: src/app/layout.tsx ---
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+import { ClientProviders } from "./ClientProviders";
+import Sidebar from "@/components/Sidebar";
+
+const inter = Inter({ subsets: ["latin"] });
+
+export const metadata: Metadata = {
+  title: "Entropy Game",
+  description: "Game test",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body className={inter.className}>
+        <ClientProviders>
+          <Sidebar />
+          {children}
+        </ClientProviders>
+      </body>
+    </html>
+  );
+}
+
+--- END FILE: src/app/layout.tsx ---
+
+--- START FILE: src/app/login/page.tsx ---
+"use client";
+
+import { useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+
+export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleLogin() {
+    setLoading(true);
+    setError("");
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      setError(error.message);
+    } else {
+      window.location.href = "/"; // redirect after login
+    }
+
+    setLoading(false);
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center h-screen gap-4">
+      <h1 className="text-3xl font-bold">Login</h1>
+
+      <input
+        className="border p-2 rounded w-72"
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={e => setEmail(e.target.value)}
+      />
+
+      <input
+        className="border p-2 rounded w-72"
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={e => setPassword(e.target.value)}
+      />
+
+      {error && <p className="text-red-500">{error}</p>}
+
+      <button
+        onClick={handleLogin}
+        disabled={loading}
+        className="bg-blue-600 text-white px-4 py-2 rounded"
+      >
+        {loading ? "Logging in..." : "Login"}
+      </button>
+
+      <a href="/signup" className="text-blue-500 underline">
+        Create an account
+      </a>
+    </div>
+  );
+}
+
+--- END FILE: src/app/login/page.tsx ---
+
+--- START FILE: src/app/page.tsx ---
+"use client";
+
+import { useEffect, useRef } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { useGameState } from "@/context/GameStateContext";
+import InventoryPage from "./inventory/page";
+import ShopPage from "./shop/page";
+import QuestLogPage from "./quests/page";
+import AvatarStudio from "./profile/page";
+import MusicPlayer from "@/components/MusicPlayer";
+
+export default function HomePage() {
+  const {
+    session,
+    loading,
+    profile,
+    activeWindow,
+    setActiveWindow,
+    refreshGameState,
+  } = useGameState();
+  const creatingProfile = useRef(false);
+
+  // Helper to add XP with fallback if RPC caps
+  async function addDebugXp(amount: number) {
+    if (!session?.user || !profile) return;
+
+    // Try RPC first
+    const { error: rpcError } = await supabase.rpc("add_xp", {
+      user_id: session.user.id,
+      amount,
+    });
+
+    if (!rpcError) {
+      await refreshGameState();
+      return;
+    }
+
+    console.warn("add_xp RPC failed, using fallback:", rpcError);
+
+    // Fallback: compute level-ups client side with 500 * level thresholds
+    let xpPool = (profile.xp ?? 0) + amount;
+    let level = profile.level ?? 1;
+    let threshold = level * 500;
+
+    while (xpPool >= threshold) {
+      xpPool -= threshold;
+      level += 1;
+      threshold = level * 500;
+    }
+
+    await supabase
+      .from("profiles")
+      .update({ xp: xpPool, level })
+      .eq("id", session.user.id);
+
+    await refreshGameState();
+  }
+
+  // Auth Redirect
+  useEffect(() => {
+    if (!loading && !session) window.location.href = "/login";
+  }, [loading, session]);
+
+  // Profile Creation Logic (keep existing ensureProfile code here)
+  useEffect(() => {
+    async function ensureProfile() {
+      if (loading || creatingProfile.current) return;
+      if (!session?.user || profile) return;
+
+      creatingProfile.current = true;
+
+      const rawName = session.user.email?.split("@")[0] || "operative";
+      let safeName = rawName.replace(/[^a-zA-Z0-9_]/g, "");
+      if (safeName.length < 3) {
+        safeName = `user_${Math.floor(Math.random() * 9999)}`;
+      }
+
+      const { error: insertError } = await supabase.from("profiles").insert({
+        id: session.user.id,
+        username: safeName,
+        avatar: "default",
+        entrobucks: 0,
+        xp: 0,
+        level: 1,
+      });
+
+      if (insertError) {
+        console.error(
+          "PROFILE INSERT ERROR:",
+          insertError.message,
+          insertError.details
+        );
+        creatingProfile.current = false;
+        return;
+      }
+
+      await refreshGameState();
+      creatingProfile.current = false;
+    }
+
+    void ensureProfile();
+  }, [loading, session, profile, refreshGameState]);
+
+  if (loading || !session) return <div className="min-h-screen bg-black text-green-500 font-mono p-10">BOOTING ENTROPY OS...</div>;
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: "100vw",
+        height: "100vh",
+        overflow: "hidden",
+        backgroundColor: "#008080",
+      }}
+    >
+      {/* Debug Controls */}
+      <div
+        style={{
+          position: "absolute",
+          top: 12,
+          left: 12,
+          zIndex: 200,
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "8px",
+        }}
+      >
+        <DebugButton
+          label="+1000 XP"
+          onClick={() => addDebugXp(1000)}
+        />
+        <DebugButton
+          label="+10,000 XP"
+          onClick={() => addDebugXp(10000)}
+        />
+        <DebugButton
+          label="Reset Items"
+          onClick={async () => {
+            if (!session?.user) return;
+            const { error } = await supabase
+              .from("user_items")
+              .delete()
+              .eq("user_id", session.user.id);
+
+            if (error) {
+              console.error("RESET ITEMS ERROR:", error);
+              return;
+            }
+
+            // Also clear equipped visuals
+            await supabase
+              .from("profiles")
+              .update({ equipped_image: null, equipped_badge: null })
+              .eq("id", session.user.id);
+
+            // Optimistic UI clear in case refresh is delayed
+            await refreshGameState();
+          }}
+        />
+        <DebugButton
+          label="Force Clear Local Items"
+          onClick={() => {
+            // Client-side fallback if RLS prevents delete; force UI reload
+            setActiveWindow("none");
+            window.location.reload();
+          }}
+        />
+        <DebugButton
+          label="Give All Items"
+          onClick={() => alert("Give All Items debug disabled in this revert.")}
+        />
+      </div>
+
+      {/* 1. BACKGROUND (Home Studio) */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          filter: activeWindow !== "none" ? "blur(8px) brightness(0.5)" : "none",
+          transition: "filter 0.3s ease",
+          zIndex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <div
+          style={{
+            width: "80%",
+            height: "80%",
+            backgroundColor: "#ff00ff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "white",
+            fontWeight: "bold",
+            fontSize: "24px",
+            border: "4px solid white",
+          }}
+        >
+          HOME STUDIO PLACEHOLDER
+        </div>
+      </div>
+
+      {/* NEW: MUSIC PLAYER (Floating on Desktop) */}
+      <MusicPlayer />
+
+      {/* 2. OVERLAY WINDOWS */}
+      {activeWindow !== "none" && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(0,0,0,0.4)",
+          }}
+        >
+          <div
+            style={{ position: "absolute", inset: 0 }}
+            onClick={() => setActiveWindow("none")}
+          />
+
+          <div
+            style={{
+              position: "relative",
+              zIndex: 101,
+              width: "100%",
+              height: "100%",
+              pointerEvents: "none",
+            }}
+          >
+            <div style={{ pointerEvents: "auto", height: "100%" }}>
+              {activeWindow === "inventory" && (
+                <InventoryPage isOverlay onClose={() => setActiveWindow("none")} />
+              )}
+              {activeWindow === "shop" && (
+                <ShopPage isOverlay onClose={() => setActiveWindow("none")} />
+              )}
+              {activeWindow === "quests" && (
+                <QuestLogPage isOverlay onClose={() => setActiveWindow("none")} />
+              )}
+              {activeWindow === "profile" && (
+                <AvatarStudio isOverlay onClose={() => setActiveWindow("none")} />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DebugButton({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void | Promise<void>;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: "6px 10px",
+        backgroundColor: "#111827",
+        color: "white",
+        border: "1px solid #4b5563",
+        borderRadius: "6px",
+        fontSize: "12px",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+--- END FILE: src/app/page.tsx ---
+
+--- START FILE: src/app/profile/page.tsx ---
+'use client';
+
+import { useState, useEffect } from "react";
+import { useGameState } from "@/context/GameStateContext";
+import Avatar from "@/components/Avatar";
+import { supabase } from "@/lib/supabaseClient";
+
+// --- PRESETS ---
+const SKIN_TONES = ['#ffdbac', '#f1c27d', '#e0ac69', '#8d5524', '#583e2a', '#3b281f'];
+const EYE_COLORS = ['#634e34', '#2e536f', '#3d671d', '#7c7c7c', '#6a0dad'];
+const HAIR_COLORS = [
+  '#090806', // Black
+  '#3b2f2f', // Dark Brown
+  '#8d5524', // Medium Brown
+  '#b7a69e', // Dirty Blonde
+  '#eab308', // Golden Blonde
+  '#d97706', // Ginger
+  '#94a3b8', // Grey/Silver
+  '#ef4444', // Dyed Red
+];
+const STYLES = ['style1', 'style2', 'style3'];
+
+type OverlayProps = { isOverlay?: boolean; onClose?: () => void };
+
+export default function AvatarStudio({ isOverlay, onClose }: OverlayProps) {
+  const { profile, loading, refreshGameState } = useGameState();
+  
+  // Local State
+  const [skin, setSkin] = useState(SKIN_TONES[0]);
+  const [eyes, setEyes] = useState(EYE_COLORS[0]);
+  const [hairColor, setHairColor] = useState(HAIR_COLORS[0]);
+  const [gender, setGender] = useState<'male' | 'female'>('male');
+  const [hairStyle, setHairStyle] = useState('style1');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (profile) {
+      if (profile.skin_tone) setSkin(profile.skin_tone);
+      if (profile.eye_color) setEyes(profile.eye_color);
+      if (profile.hair_color) setHairColor(profile.hair_color);
+      // @ts-ignore 
+      if (profile.gender) setGender(profile.gender as 'male' | 'female');
+      if (profile.hair_style) setHairStyle(profile.hair_style);
+    }
+  }, [profile]);
+
+  if (loading || !profile) return <div className="p-10 text-white">Loading...</div>;
+
+  const handleSave = async () => {
+    setSaving(true);
+    const { error } = await supabase.from('profiles').update({
+        skin_tone: skin, eye_color: eyes, hair_color: hairColor, gender: gender, hair_style: hairStyle
+    }).eq('id', profile.id);
+
+    if (error) alert("Error saving: " + error.message);
+    else await refreshGameState();
+    setSaving(false);
+  };
+
+  return (
+    <div style={{ height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: isOverlay ? '0' : '80px 20px 40px' }}>
+      
+      {/* WINDOW CONTAINER */}
+      <div className="retro-window" style={{ width: '100%', maxWidth: '900px', display: 'flex', flexDirection: 'column' }}>
+        
+        <div className="retro-header">
+            <span>Profile_Editor.exe</span>
+            <div className="retro-btn" style={{ padding: '0 6px', fontSize: '10px', cursor: 'pointer' }} onClick={onClose}>X</div>
+        </div>
+
+        <div style={{ padding: '20px', backgroundColor: '#c0c0c0', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}>
+            
+            {/* FIXED LINE BELOW: 
+                Removed 'md: row' from style. 
+                Used className 'flex flex-col md:flex-row' for responsiveness.
+            */}
+            <div className="flex flex-col md:flex-row gap-8">
+                
+                {/* LEFT: PREVIEW */}
+                <div className="retro-inset" style={{ padding: '30px', backgroundColor: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+                    <div style={{ transform: 'scale(1.5)', marginBottom: '30px' }}>
+                        <Avatar 
+                          gender={gender} 
+                          skinTone={skin} 
+                          eyeColor={eyes} 
+                          hairColor={hairColor} 
+                          hairStyle={hairStyle} 
+                          equippedImage={profile.equipped_image} 
+                          equippedHead={profile.equipped_head}
+                          equippedBody={profile.equipped_body}
+                          size={150} 
+                        />
+                    </div>
+                    
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <button onClick={() => setGender('male')} className="retro-btn" style={{ backgroundColor: gender === 'male' ? '#808080' : '#c0c0c0', color: gender === 'male' ? 'white' : 'black' }}>MALE</button>
+                        <button onClick={() => setGender('female')} className="retro-btn" style={{ backgroundColor: gender === 'female' ? '#808080' : '#c0c0c0', color: gender === 'female' ? 'white' : 'black' }}>FEMALE</button>
+                    </div>
+                </div>
+
+                {/* RIGHT: CONTROLS */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    
+                    <div>
+                        <label className="text-xs font-bold mb-2 block uppercase">Skin Tone</label>
+                        <div className="flex flex-wrap gap-2">
+                            {SKIN_TONES.map(c => (
+                                <button key={c} onClick={() => setSkin(c)} style={{ width: '30px', height: '30px', background: c, border: skin === c ? '2px solid white' : '2px solid #808080', outline: skin === c ? '2px solid black' : 'none' }} />
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-bold mb-2 block uppercase">Eye Color</label>
+                        <div className="flex flex-wrap gap-2">
+                            {EYE_COLORS.map(c => (
+                                <button key={c} onClick={() => setEyes(c)} style={{ width: '30px', height: '30px', background: c, border: eyes === c ? '2px solid white' : '2px solid #808080', outline: eyes === c ? '2px solid black' : 'none' }} />
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-bold mb-2 block uppercase">Hair Color</label>
+                        <div className="flex flex-wrap gap-2">
+                            {HAIR_COLORS.map(c => (
+                                <button key={c} onClick={() => setHairColor(c)} style={{ width: '30px', height: '30px', background: c, border: hairColor === c ? '2px solid white' : '2px solid #808080', outline: hairColor === c ? '2px solid black' : 'none' }} />
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-bold mb-2 block uppercase">Hair Style</label>
+                        <div className="flex gap-2">
+                            {STYLES.map((style, idx) => (
+                                <button key={style} onClick={() => setHairStyle(style)} className="retro-btn" style={{ flex: 1, backgroundColor: hairStyle === style ? '#808080' : '#c0c0c0', color: hairStyle === style ? 'white' : 'black' }}>
+                                    TYPE {idx + 1}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div style={{ borderTop: '2px solid white', paddingTop: '20px', marginTop: '10px' }}>
+                        <button onClick={handleSave} disabled={saving} className="retro-btn" style={{ width: '100%', padding: '15px' }}>
+                            {saving ? 'SAVING...' : 'APPLY CHANGES'}
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+--- END FILE: src/app/profile/page.tsx ---
+
+--- START FILE: src/app/quests/page.tsx ---
+'use client';
+
+import { useState } from 'react';
+import { useGameState } from '@/context/GameStateContext';
+import { useMemo } from 'react';
+
+// Win95 styling helpers from globals.css
+
+type OverlayProps = { isOverlay?: boolean; onClose?: () => void };
+
+export default function QuestLogPage({ isOverlay, onClose }: OverlayProps) {
+  const { quests, userQuests, shopItems } = useGameState(); // <--- Added shopItems here
+  const [activeTab, setActiveTab] = useState<'main' | 'side'>('side');
+
+  // Filter and Merge Data
+  const visibleQuests = useMemo(() => {
+    return quests
+      .filter((q: any) => {
+        const isType = q.type === activeTab;
+        const hasStarted = userQuests.some(uq => uq.quest_id === q.id);
+        const isHidden = q.is_hidden && !hasStarted; 
+        return isType && !isHidden;
+      })
+      .map((q: any) => {
+        const uq = userQuests.find((uq: any) => uq.quest_id === q.id);
+        return {
+          ...q,
+          status: uq?.status || 'locked',
+          progress: uq?.progress || 0,
+          target: q.target_value || 1
+        };
+      })
+      .sort((a: any, b: any) => a.reward_xp - b.reward_xp);
+  }, [quests, userQuests, activeTab]);
+
+  return (
+    // Centered Container
+    <div style={{ 
+      height: '100%', 
+      display: 'flex', 
+      justifyContent: 'center', 
+      alignItems: 'center',
+      padding: isOverlay ? '0' : '80px 20px 40px'
+    }}>
+      
+      {/* The Window */}
+      <div className="retro-window" style={{ 
+        width: '100%', 
+        maxWidth: '800px', 
+        display: 'flex', 
+        flexDirection: 'column',
+        height: '80vh' 
+      }}>
+        
+        <div className="retro-header">
+            <span>Mission_Log.txt</span>
+            <div className="retro-btn" style={{ padding: '0 6px', fontSize: '10px', cursor: 'pointer' }} onClick={onClose}>X</div>
+        </div>
+
+        {/* TABS */}
+        <div style={{ display: 'flex', gap: '4px', padding: '8px', backgroundColor: '#c0c0c0', borderBottom: '1px solid #808080' }}>
+            <button 
+                onClick={() => setActiveTab('side')}
+                style={{
+                    padding: '6px 20px', fontSize: '12px', fontWeight: 'bold',
+                    borderTop: '2px solid white', borderLeft: '2px solid white', borderRight: '2px solid #808080',
+                    backgroundColor: activeTab === 'side' ? '#c0c0c0' : '#a0a0a0',
+                    color: activeTab === 'side' ? 'black' : '#e0e0e0',
+                    transform: activeTab === 'side' ? 'translateY(2px)' : 'none',
+                    position: 'relative', zIndex: activeTab === 'side' ? 10 : 0,
+                    marginBottom: activeTab === 'side' ? '-10px' : '0'
+                }}
+            >
+                SIDE QUESTS
+            </button>
+            <button 
+                onClick={() => setActiveTab('main')}
+                style={{
+                    padding: '6px 20px', fontSize: '12px', fontWeight: 'bold',
+                    borderTop: '2px solid white', borderLeft: '2px solid white', borderRight: '2px solid #808080',
+                    backgroundColor: activeTab === 'main' ? '#c0c0c0' : '#a0a0a0',
+                    color: activeTab === 'main' ? 'black' : '#e0e0e0',
+                    transform: activeTab === 'main' ? 'translateY(2px)' : 'none',
+                    position: 'relative', zIndex: activeTab === 'main' ? 10 : 0,
+                    marginBottom: activeTab === 'main' ? '-10px' : '0'
+                }}
+            >
+                MAIN QUEST
+            </button>
+        </div>
+
+        {/* QUEST LIST */}
+        <div className="retro-inset" style={{ flex: 1, backgroundColor: 'white', margin: '8px', padding: '16px', overflowY: 'auto' }}>
+            {visibleQuests.length === 0 ? (
+                <div style={{ textAlign: 'center', marginTop: '40px', color: '#9ca3af', fontFamily: 'monospace' }}>
+                    {activeTab === 'main' ? 'NO MAIN DATA FRAGMENTS FOUND.' : 'NO TASKS AVAILABLE.'}
+                </div>
+            ) : (
+                <div style={{ display: 'grid', gap: '16px' }}>
+                    {visibleQuests.map((q: any) => (
+                        <QuestItem key={q.id} quest={q} allItems={shopItems} />
+                    ))}
+                </div>
+            )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuestItem({ quest, allItems }: { quest: any, allItems: any[] }) {
+    const isComplete = quest.status === 'completed';
+    // Calculate percentage, capping at 100%
+    const percent = Math.min(100, (quest.progress / quest.target) * 100);
+    
+    // Lookup item name if reward_item exists
+    const rewardItemName = quest.reward_item 
+        ? allItems.find(i => i.id === quest.reward_item)?.name || "???"
+        : null;
+
+    return (
+        <div style={{ 
+            border: '2px solid', 
+            borderColor: isComplete ? '#22c55e' : '#d1d5db',
+            backgroundColor: isComplete ? '#f0fdf4' : '#f9fafb',
+            padding: '12px',
+            opacity: isComplete ? 0.8 : 1
+        }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                    <h3 style={{ fontWeight: 'bold', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#1e3a8a' }}>
+                        {quest.title} {isComplete && '✅'}
+                    </h3>
+                    <p style={{ fontSize: '12px', color: '#4b5563', marginTop: '4px' }}>{quest.description}</p>
+                </div>
+                
+                {/* Rewards Badge */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', fontSize: '10px', fontFamily: 'monospace', color: '#6b7280' }}>
+                    <span>{quest.reward_entrobucks} EB</span>
+                    <span>{quest.reward_xp} XP</span>
+                    {rewardItemName && (
+                        <span style={{ color: '#9333ea', fontWeight: 'bold', marginTop: '2px' }}>
+                            + {rewardItemName}
+                        </span>
+                    )}
+                </div>
+            </div>
+
+            {/* Progress Bar (Only for In Progress) */}
+            {!isComplete && (
+                <div style={{ 
+                    width: '100%', 
+                    height: '14px', 
+                    backgroundColor: '#e5e7eb', 
+                    border: '1px solid #9ca3af', 
+                    position: 'relative', 
+                    marginTop: '8px',
+                    borderRadius: '2px' 
+                }}>
+                    <div 
+                        style={{ 
+                            height: '100%', 
+                            backgroundColor: '#2563eb', 
+                            width: `${percent}%`,
+                            transition: 'width 0.5s ease'
+                        }}
+                    />
+                    {/* The counter text: Centered absolutely within the bar container */}
+                    <div style={{ 
+                        position: 'absolute', 
+                        inset: 0, 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        fontSize: '9px', 
+                        fontWeight: 'bold', 
+                        color: percent > 55 ? 'white' : 'black', // Switch color for readability
+                        textShadow: percent > 55 ? '1px 1px 0 rgba(0,0,0,0.5)' : 'none'
+                    }}>
+                        {quest.progress} / {quest.target}
+                    </div>
+                </div>
+            )}
+            
+            {isComplete && (
+                <div style={{ 
+                    fontSize: '10px', 
+                    fontWeight: 'bold', 
+                    color: '#15803d', 
+                    textAlign: 'center', 
+                    width: '100%', 
+                    backgroundColor: '#bbf7d0', 
+                    marginTop: '8px', 
+                    padding: '2px 0' 
+                }}>
+                    MISSION COMPLETE
+                </div>
+            )}
+        </div>
+    )
+}
+
+--- END FILE: src/app/quests/page.tsx ---
+
+--- START FILE: src/app/shop/page.tsx ---
+'use client';
+
+import { useGameState } from '@/context/GameStateContext';
+import ItemCard from '@/components/ItemCard';
+import { useState } from 'react';
+
+export default function ShopPage({ isOverlay, onClose }: { isOverlay?: boolean, onClose?: () => void }) {
+  const { shopItems, inventory, profile, buyItem } = useGameState();
+  const [purchasingId, setPurchasingId] = useState<string | null>(null);
+
+  if (!profile) return <div style={{ padding: '40px', color: 'white' }}>Loading neural market...</div>;
+
+  const handleBuy = async (itemId: string) => {
+    setPurchasingId(itemId);
+    const result = await buyItem(itemId);
+    if (result.success) {
+      console.log("Purchase successful");
+    } else {
+      alert(result.message);
+    }
+    setPurchasingId(null);
+  };
+
+  // Split Items by Category
+  const cosmetics = shopItems.filter(i => i.type === 'cosmetic');
+  const modifiers = shopItems.filter(i => i.type === 'modifier');
+  // Catch-all for others (badges generally aren't bought, but just in case)
+  const others = shopItems.filter(i => i.type !== 'cosmetic' && i.type !== 'modifier');
+
+  const renderGrid = (items: any[]) => (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px', marginBottom: '30px' }}>
+        {items.map((item) => {
+            // FIX: If it's a modifier, allow unlimited purchases by treating as not owned
+            const isOwned = item.type !== 'modifier' && inventory.some((i) => i.item_id === item.id);
+            const canAfford = profile.entrobucks >= item.cost;
+            return (
+                <ItemCard key={item.id} item={item} isOwned={isOwned} canAfford={canAfford} onBuy={handleBuy} purchasing={purchasingId === item.id} profile={profile} />
+            );
+        })}
+    </div>
+  );
+
+  return (
+    <div style={{ 
+        minHeight: isOverlay ? '100%' : '100vh', 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: isOverlay ? 'center' : 'flex-start',
+        paddingTop: isOverlay ? '0' : '80px',
+        paddingBottom: isOverlay ? '0' : '40px',
+        paddingLeft: '20px', 
+        paddingRight: '20px' 
+    }}>
+      
+      <div className="retro-window" style={{ width: '100%', maxWidth: '1000px', display: 'flex', flexDirection: 'column', height: '85vh' }}>
+        
+        <div className="retro-header">
+            <span>Entropy_Marketplace.exe</span>
+            <div className="retro-btn" onClick={onClose} style={{ padding: '0 6px', fontSize: '10px', backgroundColor: '#ef4444', color: 'white' }}>X</div>
+        </div>
+
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#c0c0c0', padding: '16px', overflow: 'hidden' }}>
+            
+            {/* Header / Balance */}
+            <div className="retro-inset" style={{ padding: '16px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white' }}>
+                 <div>
+                    <h2 style={{ fontSize: '20px', fontWeight: 'bold' }}>SUPPLY DEPOT</h2>
+                    <p style={{ fontSize: '12px', color: '#666' }}>Authorized Personnel Only</p>
+                 </div>
+                 <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>Available Funds</div>
+                    <div style={{ fontSize: '24px', fontFamily: 'monospace', color: '#16a34a', fontWeight: 'bold' }}>
+                        {profile.entrobucks} EB
+                    </div>
+                 </div>
+            </div>
+
+            {/* Shop Content */}
+            <div className="retro-inset" style={{ flex: 1, backgroundColor: 'white', padding: '16px', overflowY: 'auto' }}>
+                
+                {modifiers.length > 0 && (
+                    <>
+                        <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', borderBottom: '2px solid #eee', paddingBottom: '4px' }}>MODIFIERS & BOOSTS</h3>
+                        {renderGrid(modifiers)}
+                    </>
+                )}
+
+                {cosmetics.length > 0 && (
+                    <>
+                        <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', borderBottom: '2px solid #eee', paddingBottom: '4px' }}>COSMETICS</h3>
+                        {renderGrid(cosmetics)}
+                    </>
+                )}
+
+                {others.length > 0 && (
+                    <>
+                        <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px', borderBottom: '2px solid #eee', paddingBottom: '4px' }}>MISC</h3>
+                        {renderGrid(others)}
+                    </>
+                )}
+
+                {shopItems.length === 0 && (
+                    <div style={{ padding: '40px', textAlign: 'center', border: '2px dashed #ccc', borderRadius: '8px' }}>
+                        <p style={{ color: '#666' }}>Marketplace Offline.</p>
+                    </div>
+                )}
+            </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+--- END FILE: src/app/shop/page.tsx ---
+
+--- START FILE: src/app/signup/page.tsx ---
+"use client";
+
+import { useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+
+export default function SignupPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSignup() {
+    setLoading(true);
+    setError("");
+
+    const { data, error } = await supabase.auth.signUp({
+  email,
+  password,
+});
+
+if (!error && data.user) {
+  // Create a profile record
+  await supabase.from("profiles").insert({
+    id: data.user.id,
+    username: email.split("@")[0], // temporary username
+  });
+}
+
+
+    if (error) {
+      setError(error.message);
+    } else {
+      alert("Check your email to confirm your account!");
+      window.location.href = "/login";
+    }
+
+    setLoading(false);
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center h-screen gap-4">
+      <h1 className="text-3xl font-bold">Create Account</h1>
+
+      <input
+        className="border p-2 rounded w-72"
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
+
+      <input
+        className="border p-2 rounded w-72"
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
+
+      {error && <p className="text-red-500">{error}</p>}
+
+      <button
+        onClick={handleSignup}
+        disabled={loading}
+        className="bg-green-600 text-white px-4 py-2 rounded"
+      >
+        {loading ? "Creating..." : "Sign Up"}
+      </button>
+
+      <a href="/login" className="text-blue-500 underline">
+        Already have an account?
+      </a>
+    </div>
+  );
+}
+
+--- END FILE: src/app/signup/page.tsx ---
+
+--- START FILE: src/components/Avatar.tsx ---
+import React from 'react';
+
+type AvatarProps = {
+  gender?: 'male' | 'female' | string;
+  skinTone?: string;
+  eyeColor?: string;
+  hairColor?: string;
+  hairStyle?: string; 
+  equippedImage?: string | null; // Face
+  equippedHead?: string | null;  // Head
+  equippedBody?: string | null;  // Body
+  size?: number;
+  renderMode?: 'full' | 'head' | 'face' | 'body' | 'badge';
+};
+
+export default function Avatar({ 
+  gender = 'male',
+  skinTone = '#ffdbac', 
+  eyeColor = '#634e34', 
+  hairColor = '#2c222b',
+  hairStyle = 'style1',
+  equippedImage,
+  equippedHead,
+  equippedBody,
+  size = 120,
+  renderMode = 'full'
+}: AvatarProps) {
+
+  const lowerBody = equippedBody?.toLowerCase() || '';
+  const lowerHead = equippedHead?.toLowerCase() || '';
+  const lowerFace = equippedImage?.toLowerCase() || '';
+
+  // Helper: Should we hide ALL hair? (Full coverage items)
+  const hideAllHair = lowerBody.includes('banana') || lowerHead.includes('tin') || lowerHead.includes('boiler');
+  
+  // HAT LOGIC:
+  let hairY = 8; // Default Height
+
+  if (lowerHead.includes('cap') || (lowerHead.includes('hat') && !lowerHead.includes('top'))) {
+      hairY = 14; // Caps push hair low
+  } else if (lowerHead.includes('top hat')) {
+      hairY = 11; // Top Hat Brim is at Y=10
+  } else if (lowerHead.includes('sombrero')) {
+      hairY = 10; // Sombrero Brim moved up to Y=9
+  }
+
+  // --- 1. BACK LAYER (Hoods, Costumes, Long Hair) ---
+  const renderBackLayer = () => {
+    if (renderMode !== 'full' && renderMode !== 'body') return null;
+
+    if (lowerBody.includes('big man jacket')) {
+        return <path d="M18 38 C 18 15, 46 15, 46 38 L 54 50 L 10 50 Z" fill="#0a0a0a" stroke="#000" strokeWidth="2" />;
+    }
+    
+    if (lowerBody.includes('banana')) {
+        return (
+            <g>
+                <path d="M16 40 V 4 Q 32 -8, 48 4 V 40 Z" fill="#facc15" stroke="#eab308" strokeWidth="1.5" />
+                <path d="M30 0 L 34 0 L 36 6 L 28 6 Z" fill="#3f2e00" />
+            </g>
+        );
+    }
+
+    if (lowerBody.includes('boiler') || lowerBody.includes('hazmat')) {
+        return <path d="M18 38 H 46 V 45 H 18 Z" fill="#f97316" stroke="#c2410c" strokeWidth="1" />;
+    }
+
+    if (gender === 'female' && !hideAllHair && renderMode === 'full') {
+       if (hairStyle === 'style1') return null;
+       if (hairStyle === 'style2') return <rect x="18" y="20" width="28" height="28" fill={hairColor} />;
+       if (hairStyle === 'style3') return <g fill={hairColor}><path d="M16 20 L 12 60 H 52 L 48 20 Z" /></g>;
+    }
+    return null;
+  };
+
+  // --- 2. BODY LAYER ---
+  const renderBody = () => {
+    if (renderMode !== 'full' && renderMode !== 'body') return null;
+
+    let shirtColor = gender === 'male' ? '#334155' : '#475569'; 
+    let isStandardShirt = true;
+    let isTankTop = false;
+    let customGraphic = null;
+
+    const shoulderX = gender === 'female' ? 18 : 16;
+    const shoulderW = gender === 'female' ? 28 : 32;
+
+    if (equippedBody) {
+        if (lowerBody.includes('white')) shirtColor = '#f8fafc';
+        else if (lowerBody.includes('black')) shirtColor = '#171717';
+        else if (lowerBody.includes('red')) shirtColor = '#ef4444';
+        else if (lowerBody.includes('blue')) shirtColor = '#3b82f6';
+        else if (lowerBody.includes('green')) shirtColor = '#22c55e';
+        else if (lowerBody.includes('purple')) shirtColor = '#a855f7';
+        else if (lowerBody.includes('gold')) { 
+            shirtColor = '#fbbf24'; 
+            customGraphic = <text x="32" y="55" fontSize="10" fontWeight="bold" textAnchor="middle" fill="#78350f" fontFamily="monospace">100%</text>;
+        }
+        else if (lowerBody.includes('tank top')) { isStandardShirt = false; isTankTop = true; shirtColor = '#ffffff'; }
+        else if (lowerBody.includes('big man jacket')) isStandardShirt = false; 
+        else if (lowerBody.includes('banana')) isStandardShirt = false; 
+        else if (lowerBody.includes('boiler')) isStandardShirt = false;
+        else if (lowerBody.includes('tuxedo')) isStandardShirt = false;
+        
+        else if (lowerBody.includes('entropy')) {
+            shirtColor = '#000000'; 
+            customGraphic = (
+                <g opacity="0.9">
+                    <rect x="20" y="48" width="4" height="8" rx="2" fill="white" />
+                    <rect x="26" y="50" width="2" height="4" rx="1" fill="white" />
+                    <rect x="30" y="49" width="2" height="6" rx="1" fill="white" />
+                    <rect x="34" y="50" width="2" height="4" rx="1" fill="white" />
+                    <rect x="38" y="48" width="4" height="8" rx="2" fill="white" />
+                </g>
+            );
+        }
+        else if (lowerBody.includes('zanebot')) {
+            shirtColor = '#101010'; 
+            customGraphic = (
+                <g>
+                    <rect x="26" y="46" width="2" height="6" fill="white" />
+                    <path d="M30 48 Q 32 44, 34 48 Q 36 44, 38 48 L 34 53 Z" fill="red" />
+                    <rect x="33" y="46" width="6" height="5" fill="#4b5563" rx="1" />
+                    <rect x="34" y="47" width="2" height="1" fill="#4ade80" />
+                    <rect x="37" y="47" width="1" height="1" fill="#4ade80" />
+                </g>
+            );
+        }
+    }
+
+    if (lowerBody.includes('big man jacket')) {
+        return (
+            <g>
+                <path d="M10 42 Q 32 38, 54 42 V 64 H 10 Z" fill="#0a0a0a" stroke="#000" strokeWidth="1" />
+                <rect x="31" y="42" width="2" height="22" fill="#94a3b8" />
+                <path d="M12 48 H 30 M34 48 H 52 M12 56 H 30 M34 56 H 52" stroke="#262626" strokeWidth="1" />
+                <rect x="24" y="38" width="16" height="6" fill="#0a0a0a" />
+            </g>
+        );
+    }
+    if (lowerBody.includes('banana')) {
+        return (
+            <g>
+                <path d="M12 42 Q 8 55, 20 64 H 44 Q 56 55, 52 42 V 38 H 12 Z" fill="#facc15" stroke="#eab308" strokeWidth="1.5" />
+            </g>
+        );
+    }
+    if (lowerBody.includes('boiler')) {
+        return (
+            <g>
+                <path d="M12 42 H 52 V 64 H 12 Z" fill="#f97316" stroke="#c2410c" strokeWidth="1" />
+                <rect x="12" y="50" width="40" height="4" fill="#cbd5e1" opacity="0.8" />
+                <line x1="32" y1="42" x2="32" y2="64" stroke="#c2410c" strokeWidth="1" />
+                <rect x="26" y="38" width="12" height="4" fill={skinTone} />
+            </g>
+        );
+    }
+    if (isTankTop) {
+        return (
+            <g>
+                <path d={`M${shoulderX} 42 Q 32 38, ${shoulderX + shoulderW} 42 V 64 H ${shoulderX} Z`} fill={skinTone} />
+                <path d="M22 42 V 64 H 42 V 42 Q 32 55, 22 42 Z" fill={shirtColor} stroke="#e5e7eb" strokeWidth="0.5" />
+                <rect x="26" y="38" width="12" height="6" fill={skinTone} />
+            </g>
+        );
+    }
+    if (lowerBody.includes('tuxedo')) {
+        return (
+            <g>
+                <path d={`M${shoulderX} 42 H ${shoulderX + shoulderW} V 64 H ${shoulderX} Z`} fill="#0a0a0a" />
+                <path d="M26 42 L 32 58 L 38 42 Z" fill="white" />
+                <path d="M28 42 L 32 46 L 36 42 L 32 38 Z" fill="#ef4444" />
+                <rect x={shoulderX - 4} y="44" width="8" height="10" fill="#0a0a0a" />
+                <rect x={shoulderX + shoulderW - 4} y="44" width="8" height="10" fill="#0a0a0a" />
+                <rect x={shoulderX - 3} y="54" width="6" height="10" fill={skinTone} />
+                <rect x={shoulderX + shoulderW - 3} y="54" width="6" height="10" fill={skinTone} />
+                <rect x="26" y="38" width="12" height="6" fill={skinTone} />
+            </g>
+        );
+    }
+    if (isStandardShirt) {
+        return (
+            <g>
+                <path d={`M${shoulderX} 42 H ${shoulderX + shoulderW} V 64 H ${shoulderX} Z`} fill={shirtColor} stroke="rgba(0,0,0,0.2)" strokeWidth="1" />
+                <rect x={shoulderX - 4} y="44" width="8" height="10" fill={shirtColor} />
+                <rect x={shoulderX + shoulderW - 4} y="44" width="8" height="10" fill={shirtColor} />
+                <rect x={shoulderX - 3} y="54" width="6" height="10" fill={skinTone} />
+                <rect x={shoulderX + shoulderW - 3} y="54" width="6" height="10" fill={skinTone} />
+                <rect x="26" y="38" width="12" height="6" fill={skinTone} />
+                {customGraphic}
+            </g>
+        );
+    }
+    return null;
+  };
+
+  // --- 3. HEAD & FACE BASE ---
+  const renderHead = () => {
+    if (renderMode === 'body' || renderMode === 'badge') return null;
+    return (
+      <g>
+          <path d="M20 16 H 44 V 30 Q 44 42, 32 42 Q 20 42, 20 30 Z" fill={skinTone} />
+          <rect x="20" y="8" width="24" height="12" rx="5" fill={skinTone} />
+          <g>
+              <rect x="23" y="24" width="6" height="4" fill="white" />
+              <rect x="25" y="25" width="2" height="2" fill={eyeColor} />
+              <rect x="35" y="24" width="6" height="4" fill="white" />
+              <rect x="37" y="25" width="2" height="2" fill={eyeColor} />
+          </g>
+          <rect x="28" y="35" width="8" height="2" fill="rgba(0,0,0,0.15)" />
+      </g>
+    );
+  };
+
+  // --- 4. FACE ACCESSORIES ---
+  const renderFaceAccessories = () => {
+      if (renderMode !== 'full' && renderMode !== 'face') return null;
+
+      if (lowerFace.includes('zane') || lowerFace.includes('bot')) {
+          return (
+              <g>
+                  <ellipse cx="25" cy="23" rx="7" ry="5" fill="#4ade80" stroke="#1f2937" strokeWidth="1" />
+                  <ellipse cx="39" cy="23" rx="7" ry="5" fill="#4ade80" stroke="#1f2937" strokeWidth="1" />
+                  <line x1="32" y1="23" x2="32" y2="23" stroke="#1f2937" strokeWidth="2" />
+                  <path d="M22 21 L 26 21" stroke="white" strokeWidth="1" opacity="0.5" />
+                  <path d="M36 21 L 40 21" stroke="white" strokeWidth="1" opacity="0.5" />
+              </g>
+          );
+      }
+      if (lowerFace.includes('shadez')) {
+          return (
+              <g>
+                  <path d="M20 22 H 30 L 32 26 L 34 22 H 44 V 26 Q 44 30, 40 30 H 24 Q 20 30, 20 26 Z" fill="black" />
+                  <rect x="22" y="23" width="6" height="2" fill="#333" />
+                  <rect x="36" y="23" width="6" height="2" fill="#333" />
+              </g>
+          );
+      }
+      if (lowerFace.includes('distortion') || lowerFace.includes('goggles')) {
+          return (
+              <g>
+                  <rect x="20" y="23" width="10" height="6" fill="#111" />
+                  <rect x="34" y="23" width="10" height="6" fill="#111" />
+                  <rect x="30" y="25" width="4" height="2" fill="#111" />
+                  <rect x="21" y="24" width="8" height="4" fill="#ef4444" opacity="0.8" />
+                  <rect x="35" y="24" width="8" height="4" fill="#ef4444" opacity="0.8" />
+                  <line x1="20" y1="25" x2="44" y2="25" stroke="white" strokeWidth="0.5" opacity="0.3" />
+                  <line x1="22" y1="27" x2="42" y2="27" stroke="black" strokeWidth="0.5" opacity="0.3" />
+              </g>
+          );
+      }
+      return null;
+  };
+
+  // --- 5. HEAD ACCESSORIES ---
+  const renderHeadAccessories = () => {
+      if (renderMode !== 'full' && renderMode !== 'head') return null;
+
+      if (lowerHead.includes('headphone')) {
+          return (
+              <g>
+                  <path d="M16 26 V 16 Q 16 4, 32 4 Q 48 4, 48 16 V 26" fill="none" stroke="#333" strokeWidth="3" />
+                  <rect x="14" y="22" width="6" height="12" rx="2" fill="#111" />
+                  <rect x="44" y="22" width="6" height="12" rx="2" fill="#111" />
+                  <circle cx="17" cy="28" r="1.5" fill="red" />
+                  <circle cx="47" cy="28" r="1.5" fill="red" />
+              </g>
+          );
+      }
+      if (lowerHead.includes('fez')) {
+          return (
+              <g>
+                  <path d="M26 0 L 24 8 H 40 L 38 0 Z" fill="#b91c1c" />
+                  <path d="M34 0 L 38 0 L 40 8" fill="none" stroke="black" strokeWidth="1" />
+                  <circle cx="40" cy="8" r="1" fill="black" />
+              </g>
+          );
+      }
+      if (lowerHead.includes('sombrero')) {
+          return (
+              <g>
+                  <path d="M24 9 L 28 3 H 36 L 40 9 Z" fill="#facc15" />
+                  <path d="M4 9 Q 32 13, 60 9" fill="none" stroke="#facc15" strokeWidth="6" />
+                  <circle cx="10" cy="9" r="1" fill="red" />
+                  <circle cx="20" cy="10" r="1" fill="green" />
+                  <circle cx="32" cy="10" r="1" fill="blue" />
+                  <circle cx="44" cy="10" r="1" fill="red" />
+                  <circle cx="54" cy="9" r="1" fill="green" />
+              </g>
+          );
+      }
+      if (lowerHead.includes('tin')) {
+          return (
+              <g>
+                  <path d="M18 14 L 22 4 L 26 8 L 32 2 L 38 8 L 42 4 L 46 14 Z" fill="#cbd5e1" stroke="#94a3b8" strokeWidth="1" />
+                  <path d="M18 14 H 46 V 18 H 18 Z" fill="#cbd5e1" />
+                  <line x1="32" y1="2" x2="32" y2="-6" stroke="#64748b" strokeWidth="1" />
+                  <path d="M32 -6 Q 40 -8, 42 -2" fill="none" stroke="#64748b" strokeWidth="1.5" />
+                  <line x1="38" y1="-5" x2="40" y2="-7" stroke="#64748b" strokeWidth="0.5" />
+              </g>
+          );
+      }
+      if (lowerHead.includes('cap') || lowerHead.includes('hat') && !lowerHead.includes('top')) {
+          // NO. 1 FAN CAP (Fixed: Single Contour Stroke)
+          if (lowerHead.includes('fan')) {
+              return (
+                  <g>
+                      {/* 1. FILLS (White) - Drawn first */}
+                      <path d="M18 16 V 8 Q 32 2, 46 8 V 16 Z" fill="#ffffff" />
+                      <path d="M46 14 L 56 16 L 46 18 Z" fill="#ffffff" />
+                      <rect x="18" y="14" width="28" height="4" fill="#ffffff" />
+                      <path d="M30 10 Q 32 8, 34 10 Q 36 8, 38 10 L 34 14 Z" fill="red" />
+
+                      {/* 2. STROKE (Outer Contour Only + Bottom Brim) - Drawn last 
+                          M18 18 -> Bottom Left of Brim
+                          V 8    -> Up to top left (skipping internal line at 14)
+                          Q...   -> Top Arch
+                          V 18   -> Down to Bottom Right of Brim
+                          Z      -> Closes bottom line
+                      */}
+                      <path d="M18 18 V 8 Q 32 2, 46 8 V 18 Z" fill="none" stroke="black" strokeWidth="0.5" />
+                      
+                      {/* Side flap detail stroke (optional, but keeps shape clear) */}
+                      <path d="M46 14 L 56 16 L 46 18" fill="none" stroke="black" strokeWidth="0.5" />
+                  </g>
+              );
+          }
+          const capColor = lowerHead.includes('entropy') ? '#000000' : '#334155';
+          return (
+              <g>
+                  <path d="M20 16 V 8 Q 32 2, 44 8 V 16 Z" fill={capColor} />
+                  <path d="M44 14 L 54 16 L 44 18 Z" fill={capColor} stroke="rgba(0,0,0,0.3)" strokeWidth="0.5" />
+                  <rect x="20" y="14" width="24" height="4" fill={capColor} />
+                  {lowerHead.includes('entropy') && (
+                      <g transform="translate(0, -2) scale(0.8) translate(8, 6)">
+                          <rect x="28" y="8" width="1" height="3" fill="white" />
+                          <rect x="30" y="7" width="1" height="5" fill="white" />
+                          <rect x="32" y="8" width="1" height="3" fill="white" />
+                          <rect x="34" y="7" width="1" height="5" fill="white" />
+                      </g>
+                  )}
+              </g>
+          );
+      }
+      if (lowerHead.includes('top hat')) {
+          return (
+              <g>
+                  <rect x="21" y="0" width="22" height="10" fill="#111" />
+                  <rect x="17" y="10" width="30" height="2" fill="#111" />
+                  <rect x="21" y="8" width="22" height="2" fill="#333" />
+              </g>
+          );
+      }
+      return null;
+  };
+
+  // --- 6. HAIR (FRONT) ---
+  const renderFrontHair = () => {
+    if (renderMode !== 'full') return null;
+    if (hideAllHair) return null; 
+
+    if (gender === 'male') {
+      if (hairStyle === 'style1') {
+          return (
+            <g fill={hairColor}>
+              <rect x="18" y={hairY} width="28" height="4" />
+              <rect x="18" y={hairY+4} width="4" height="4" />
+              <rect x="42" y={hairY+4} width="4" height="4" />
+            </g>
+          );
+      }
+      if (hairStyle === 'style2') {
+          return <rect x="28" y={hairY-6} width="8" height="10" fill={hairColor} />;
+      }
+      if (hairStyle === 'style3') {
+          return (
+             <g fill={hairColor}>
+               <rect x="18" y={hairY} width="28" height="4" />
+               <rect x="18" y={hairY+4} width="4" height="3" />
+               <rect x="24" y={hairY+4} width="4" height="5" />
+               <rect x="36" y={hairY+4} width="4" height="5" />
+               <rect x="42" y={hairY+4} width="4" height="3" />
+             </g>
+          );
+      }
+    } else {
+      if (hairStyle === 'style1') {
+          return (
+            <g fill={hairColor}>
+               <rect x="18" y={hairY} width="28" height="6" />
+               <rect x="18" y={hairY+6} width="4" height="6" />
+               <rect x="42" y={hairY+6} width="4" height="6" />
+            </g>
+          );
+      }
+      if (hairStyle === 'style2') {
+          return (
+            <g fill={hairColor}>
+               <rect x="18" y={hairY} width="28" height="6" />
+               <rect x="18" y={hairY+6} width="6" height="14" />
+               <rect x="40" y={hairY+6} width="6" height="14" />
+            </g>
+          );
+      }
+      if (hairStyle === 'style3') {
+          return (
+            <g fill={hairColor}>
+                <path d={`M32 ${hairY} L 18 40 V ${hairY} Z`} />
+                <path d={`M32 ${hairY} L 46 40 V ${hairY} Z`} />
+            </g>
+          );
+      }
+    }
+    return null;
+  };
+
+  return (
+    <div className="relative flex items-center justify-center overflow-hidden" style={{ width: size, height: size, imageRendering: 'pixelated' }}>
+      <svg viewBox="0 0 64 64" className="w-full h-full" style={{ shapeRendering: 'crispEdges' }}>
+        <defs>
+            <pattern id="lvPattern" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
+                <rect width="8" height="8" fill="#5c4033" />
+                <circle cx="4" cy="4" r="1.5" fill="#a88b68" opacity="0.6" />
+                <path d="M0 0 L2 2 M8 0 L6 2" stroke="#a88b68" strokeWidth="0.5" opacity="0.6" />
+            </pattern>
+        </defs>
+
+        {renderBackLayer()}
+        {renderBody()}
+        {renderHead()}
+        {renderFaceAccessories()} 
+        {renderFrontHair()}
+        {renderHeadAccessories()}
+      </svg>
+    </div>
+  );
+}
+--- END FILE: src/components/Avatar.tsx ---
+
+--- START FILE: src/components/InventoryCard.tsx ---
+import React from 'react';
+import type { UserItem, Profile } from '@/context/GameStateContext';
+import Avatar from './Avatar';
+
+interface InventoryCardProps {
+  userItem: UserItem;
+  isEquipped: boolean;
+  onEquip: () => void;
+  onUnequip: () => void;
+  profile: Profile;
+}
+
+const getRarityColor = (rarity?: string) => {
+  switch (rarity) {
+    case 'entropic': return '#dc2626'; 
+    case 'ultra_rare': return '#9333ea'; 
+    case 'rare': return '#2563eb'; 
+    case 'uncommon': return '#16a34a'; 
+    default: return '#9ca3af'; 
+  }
+};
+
+export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip, profile }: InventoryCardProps) {
+  const item = userItem.item_details;
+  if (!item) return null;
+
+  const rarityColor = getRarityColor(item.rarity);
+  const isEntropic = item.rarity === 'entropic';
+  const isModifier = item.type === 'modifier';
+  const count = userItem.count || 1;
+  const isBody = item.slot === 'body';
+
+  const handleAction = () => {
+    if (item.type === 'music') {
+      alert(`Downloading track: ${item.name}.mp3 ...`);
+    } else if (isModifier) {
+      alert(`Using ${item.name}...`);
+    } else if (isEquipped && !isBody) {
+      onUnequip();
+    } else {
+      onEquip();
+    }
+  };
+
+  // --- PREVIEW RENDERING LOGIC ---
+  const renderPreview = () => {
+    if (item.type === 'cosmetic') {
+      const part = (item.slot as 'head' | 'face' | 'body') || 'body';
+      let transformStyle = 'scale(1.2) translateY(5px)';
+      if (part === 'body') transformStyle = 'scale(1.6) translateY(-18px)';
+      if (part === 'head') transformStyle = 'scale(1.6) translateY(12px)';
+      if (part === 'face') transformStyle = 'scale(2.2) translateY(5px)';
+
+      return (
+        <div style={{ width: '100%', height: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ transform: transformStyle }}>
+            <Avatar
+              gender={profile.gender}
+              skinTone={profile.skin_tone}
+              eyeColor={profile.eye_color}
+              hairColor={profile.hair_color}
+              hairStyle={profile.hair_style}
+              equippedHead={part === 'head' ? item.name : undefined}
+              equippedImage={part === 'face' ? item.name : undefined}
+              equippedBody={part === 'body' ? item.name : undefined}
+              size={50}
+              renderMode={part}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    return <span style={{ fontSize: '28px' }}>{item.image_url}</span>;
+  };
+
+  return (
+    <div className="retro-btn" style={{ 
+        padding: 0, flexDirection: 'column', alignItems: 'stretch', height: '100%', position: 'relative',
+        backgroundColor: isEquipped ? '#dcfce7' : '#e5e5e5', 
+        border: isEquipped ? '2px solid #16a34a' : '1px solid white'
+    }}>
+      <div style={{ 
+          backgroundColor: rarityColor, color: 'white', fontSize: '9px', fontWeight: 'bold', 
+          padding: '2px 4px', textTransform: 'uppercase', textAlign: 'center', letterSpacing: '1px',
+          animation: isEntropic ? 'pulse 2s infinite' : 'none'
+      }}>
+          {item.rarity?.replace('_', ' ') || 'COMMON'}
+      </div>
+
+      {count > 1 && (
+          <div style={{ position: 'absolute', top: '22px', right: '4px', backgroundColor: '#ef4444', color: 'white', borderRadius: '50%', width: '18px', height: '18px', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid white', zIndex: 10 }}>
+              {count}
+          </div>
+      )}
+
+      <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', flex: 1, gap: '8px' }}>
+          <div className="retro-inset" style={{ backgroundColor: 'white', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {renderPreview()}
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <h3 style={{ fontSize: '11px', fontWeight: 'bold', lineHeight: '1.2' }}>{item.name}</h3>
+            <p style={{ fontSize: '9px', color: '#666', marginTop: '2px' }}>{item.type}</p>
+          </div>
+
+          <button 
+            onClick={handleAction}
+            style={{
+                backgroundColor: isEquipped ? '#fee2e2' : '#c0c0c0', 
+                border: '1px solid #808080',
+                boxShadow: '1px 1px 0 black',
+                fontSize: '10px', fontWeight: 'bold', padding: '4px', cursor: 'pointer', marginTop: 'auto',
+                color: isEquipped ? '#991b1b' : 'black'
+            }}
+          >
+            {item.type === 'music' ? 'DOWNLOAD' : isModifier ? 'USE' : isEquipped && !isBody ? 'UNEQUIP' : 'EQUIP'}
+          </button>
+      </div>
+    </div>
+  );
+}
+
+--- END FILE: src/components/InventoryCard.tsx ---
+
+--- START FILE: src/components/ItemCard.tsx ---
+import React from 'react';
+import type { Item, Profile } from '@/context/GameStateContext';
+import Avatar from './Avatar';
+
+interface ItemCardProps {
+  item: Item;
+  isOwned: boolean;
+  canAfford: boolean;
+  onBuy: (id: string) => void;
+  purchasing: boolean;
+  profile: Profile;
+}
+
+const getRarityColor = (rarity?: string) => {
+  switch (rarity) {
+    case 'entropic': return '#dc2626';
+    case 'ultra_rare': return '#9333ea';
+    case 'rare': return '#2563eb';
+    case 'uncommon': return '#16a34a';
+    default: return '#9ca3af';
+  }
+};
+
+export default function ItemCard({ item, isOwned, canAfford, onBuy, purchasing, profile }: ItemCardProps) {
+  const rarityColor = getRarityColor(item.rarity);
+  const isEntropic = item.rarity === 'entropic';
+
+  const renderPreview = () => {
+    if (item.type === 'cosmetic') {
+      const part = (item.slot as 'head' | 'face' | 'body') || 'body';
+      let transformStyle = 'scale(1.2) translateY(5px)';
+      if (part === 'body') transformStyle = 'scale(1.6) translateY(-18px)';
+      if (part === 'head') transformStyle = 'scale(1.6) translateY(12px)';
+      if (part === 'face') transformStyle = 'scale(2.2) translateY(5px)';
+
+      return (
+        <div style={{ width: '100%', height: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ transform: transformStyle }}>
+            <Avatar
+              gender={profile.gender}
+              skinTone={profile.skin_tone}
+              eyeColor={profile.eye_color}
+              hairColor={profile.hair_color}
+              hairStyle={profile.hair_style}
+              equippedHead={part === 'head' ? item.name : undefined}
+              equippedImage={part === 'face' ? item.name : undefined}
+              equippedBody={part === 'body' ? item.name : undefined}
+              size={50}
+              renderMode={part}
+            />
+          </div>
+        </div>
+      );
+    }
+    return <span style={{ fontSize: '28px' }}>{item.image_url}</span>;
+  };
+
+  return (
+    <div className="retro-btn" style={{ 
+        padding: 0, flexDirection: 'column', alignItems: 'stretch', height: '100%',
+        opacity: isOwned ? 0.6 : 1, position: 'relative'
+    }}>
+      <div style={{ 
+          backgroundColor: rarityColor, color: 'white', fontSize: '10px', fontWeight: 'bold', 
+          padding: '2px 4px', textTransform: 'uppercase', textAlign: 'center', letterSpacing: '1px',
+          animation: isEntropic ? 'pulse 2s infinite' : 'none'
+      }}>
+          {item.rarity?.replace('_', ' ') || 'COMMON'}
+      </div>
+
+      <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', flex: 1, gap: '8px' }}>
+          <div className="retro-inset" style={{ backgroundColor: '#f3f4f6', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {renderPreview()}
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <h3 style={{ fontSize: '12px', fontWeight: 'bold', lineHeight: '1.2' }}>{item.name}</h3>
+            <p style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>{item.description}</p>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+            <div style={{ fontWeight: 'bold', fontFamily: 'monospace', color: canAfford ? '#16a34a' : '#dc2626' }}>
+              {item.cost} EB
+            </div>
+
+            {isOwned ? (
+              <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666' }}>OWNED</span>
+            ) : (
+              <button
+                onClick={() => onBuy(item.id)}
+                disabled={!canAfford || purchasing}
+                style={{
+                    backgroundColor: canAfford ? '#000080' : '#ccc',
+                    color: canAfford ? 'white' : '#666',
+                    border: 'none', padding: '4px 8px', fontSize: '10px', fontWeight: 'bold',
+                    cursor: canAfford ? 'pointer' : 'not-allowed',
+                    boxShadow: canAfford ? '1px 1px 0 black' : 'none'
+                }}
+              >
+                {purchasing ? '...' : 'BUY'}
+              </button>
+            )}
+          </div>
+      </div>
+    </div>
+  );
+}
+
+--- END FILE: src/components/ItemCard.tsx ---
+
+--- START FILE: src/components/MusicPlayer.tsx ---
+'use client';
+
+import { useState, useRef, useEffect } from 'react';
+
+// --- PLAYLIST CONFIG ---
+const TRACKS = [
+  { title: "SAMANTHA BOOTLEG", artist: "VERTIGO", url: "https://uyufenhltvwxypldaemj.supabase.co/storage/v1/object/public/Entropy/GENB_VERTIGO_1.wav" }, 
+  { title: "ZEZE BOOTLEG", artist: "GEN B", url: "https://uyufenhltvwxypldaemj.supabase.co/storage/v1/object/public/Entropy/GENB_VERTIGO_2.wav" },
+  { title: "POKERFACE BOOTLEG", artist: "GEN B x VERTIGO", url: "https://uyufenhltvwxypldaemj.supabase.co/storage/v1/object/public/Entropy/GENB_VERTIGO_3.wav" },
+];
+
+export default function MusicPlayer() {
+  const [currentTrack, setCurrentTrack] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [volume, setVolume] = useState(0.5);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Handle Auto-Play next track
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const handleEnded = () => nextTrack();
+    audio.addEventListener('ended', handleEnded);
+    return () => audio.removeEventListener('ended', handleEnded);
+  }, [currentTrack]);
+
+  // Volume Control
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume;
+  }, [volume]);
+
+  // Play/Pause Logic
+  useEffect(() => {
+    if (audioRef.current) {
+        if (isPlaying) audioRef.current.play().catch(e => console.log("Autoplay blocked:", e));
+        else audioRef.current.pause();
+    }
+  }, [isPlaying, currentTrack]);
+
+  const nextTrack = () => {
+    setCurrentTrack((prev) => (prev + 1) % TRACKS.length);
+    setIsPlaying(true);
+  };
+
+  const prevTrack = () => {
+    setCurrentTrack((prev) => (prev - 1 + TRACKS.length) % TRACKS.length);
+    setIsPlaying(true);
+  };
+
+  return (
+    <div className="retro-window" style={{ 
+        position: 'fixed', 
+        bottom: '20px', 
+        left: '20px', 
+        width: '280px', 
+        zIndex: 9000,
+        backgroundColor: '#1a1a1a', // Darker skin
+        border: '2px solid #4a4a4a',
+        boxShadow: '4px 4px 0px rgba(0,0,0,0.5)'
+    }}>
+      {/* Hidden Audio Element */}
+      <audio ref={audioRef} src={TRACKS[currentTrack].url} />
+
+      {/* HEADER (Draggable handle area in theory) */}
+      <div className="retro-header" style={{ 
+          backgroundColor: '#2d2d2d', 
+          height: '20px', 
+          fontSize: '10px',
+          borderBottom: '1px solid #000'
+      }}>
+          <span style={{ color: '#00ff00', fontFamily: 'monospace' }}>ENTROPY_AMP.EXE</span>
+          <div 
+            onClick={() => setIsMinimized(!isMinimized)} 
+            className="retro-btn" 
+            style={{ 
+                padding: '0 4px', 
+                height: '14px', 
+                fontSize: '8px', 
+                backgroundColor: '#444',
+                color: 'white',
+                border: '1px solid #666'
+            }}
+          >
+            {isMinimized ? '□' : '_'}
+          </div>
+      </div>
+
+      {!isMinimized && (
+          <div style={{ padding: '10px' }}>
+              
+              {/* DISPLAY SCREEN */}
+              <div style={{ 
+                  backgroundColor: '#000', 
+                  border: '2px inset #444', 
+                  marginBottom: '10px',
+                  padding: '4px',
+                  height: '40px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center'
+              }}>
+                  <div style={{ 
+                      color: '#00ff00', 
+                      fontFamily: 'monospace', 
+                      fontSize: '10px', 
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden'
+                  }}>
+                      <span style={{ display: 'inline-block', animation: 'marquee 5s linear infinite' }}>
+                        {currentTrack + 1}. {TRACKS[currentTrack].artist} - {TRACKS[currentTrack].title} *** 128kbps *** </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '2px', marginTop: '2px' }}>
+                      {/* Fake Visualizer Bars */}
+                      {[...Array(15)].map((_, i) => (
+                          <div key={i} style={{ 
+                              width: '4px', 
+                              height: `${Math.random() * 12 + 2}px`, 
+                              backgroundColor: isPlaying ? (i % 2 === 0 ? '#00ff00' : '#ffff00') : '#333',
+                              alignSelf: 'flex-end'
+                          }} />
+                      ))}
+                  </div>
+              </div>
+
+              {/* CONTROLS */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <button onClick={prevTrack} className="retro-btn" style={{ fontSize: '10px', width: '30px', backgroundColor: '#333', color: '#ccc' }}>|&lt;</button>
+                  <button onClick={() => setIsPlaying(!isPlaying)} className="retro-btn" style={{ fontSize: '10px', width: '40px', backgroundColor: '#333', color: '#00ff00' }}>
+                      {isPlaying ? '||' : '►'}
+                  </button>
+                  <button onClick={nextTrack} className="retro-btn" style={{ fontSize: '10px', width: '30px', backgroundColor: '#333', color: '#ccc' }}>&gt;|</button>
+                  <button onClick={() => window.open('https://entropyofficial.com', '_blank')} className="retro-btn" style={{ fontSize: '10px', width: '30px', backgroundColor: '#333', color: '#ccc' }}>⏏</button>
+              </div>
+
+              {/* VOLUME SLIDER */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <span style={{ fontSize: '8px', color: '#888', fontFamily: 'monospace' }}>VOL</span>
+                  <input 
+                    type="range" 
+                    min="0" max="1" step="0.01" 
+                    value={volume}
+                    onChange={(e) => setVolume(parseFloat(e.target.value))}
+                    style={{ 
+                        width: '100%', 
+                        height: '4px', 
+                        appearance: 'none', 
+                        background: '#333',
+                        outline: 'none'
+                    }} 
+                  />
+              </div>
+
+          </div>
+      )}
+      
+      {/* Marquee Animation Style */}
+      <style jsx>{`
+        @keyframes marquee {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+      `}</style>
+    </div>
+  );
+}
+--- END FILE: src/components/MusicPlayer.tsx ---
+
+--- START FILE: src/components/QuestCard.tsx ---
+import React from 'react';
+
+// Interfaces based on your Schema [cite: 35, 42]
+interface Quest {
+  id: string;
+  title: string;
+  description: string;
+  reward_entrobucks: number;
+  reward_item: string | null;
+}
+
+interface QuestCardProps {
+  quest: Quest;
+  status: 'not_started' | 'in_progress' | 'completed';
+  onStart: (id: string) => void;
+  onComplete: (id: string) => void;
+}
+
+export default function QuestCard({ quest, status, onStart, onComplete }: QuestCardProps) {
+  return (
+    <div className="border border-slate-700 bg-slate-900/80 p-6 rounded-lg shadow-lg relative overflow-hidden group hover:border-green-500/50 transition-all">
+      {/* Glitchy decorative overlay */}
+      <div className="absolute top-0 left-0 w-1 h-full bg-slate-800 group-hover:bg-green-500 transition-colors" />
+
+      <div className="pl-4">
+        <h3 className="text-xl font-bold text-white mb-2">{quest.title}</h3>
+        <p className="text-slate-400 text-sm mb-4">{quest.description}</p>
+        
+        {/* Rewards Section [cite: 39, 40] */}
+        <div className="flex gap-3 text-xs font-mono uppercase tracking-widest text-green-400 mb-6">
+          <span className="bg-slate-800 px-2 py-1 rounded">
+            + {quest.reward_entrobucks} Entrobucks
+          </span>
+          {quest.reward_item && (
+            <span className="bg-slate-800 px-2 py-1 rounded text-purple-400">
+              Item: {quest.reward_item}
+            </span>
+          )}
+        </div>
+
+        {/* Action Buttons based on Status [cite: 47] */}
+        <div className="mt-2">
+          {status === 'not_started' && (
+            <button
+              onClick={() => onStart(quest.id)}
+              className="w-full py-2 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded transition-colors"
+            >
+              Accept Mission
+            </button>
+          )}
+
+          {status === 'in_progress' && (
+            <button
+              onClick={() => onComplete(quest.id)}
+              className="w-full py-2 bg-green-600 hover:bg-green-500 text-black font-bold rounded transition-colors shadow-[0_0_15px_rgba(34,197,94,0.4)]"
+            >
+              Complete Mission
+            </button>
+          )}
+
+          {status === 'completed' && (
+            <div className="w-full py-2 text-center text-slate-500 font-mono text-sm border border-slate-800 rounded">
+              // MISSION ARCHIVED
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+--- END FILE: src/components/QuestCard.tsx ---
+
+--- START FILE: src/components/Sidebar.tsx ---
+'use client';
+
+import { useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { useGameState } from '@/context/GameStateContext';
+import { supabase } from '@/lib/supabaseClient';
+import Avatar from './Avatar';
+
+export default function Sidebar() {
+  const [isOpen, setIsOpen] = useState(false);
+  const { profile, activeWindow, setActiveWindow } = useGameState();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Helper to open window and close sidebar
+  const openWindow = (w: 'none' | 'inventory' | 'shop' | 'quests' | 'profile') => {
+    // Ensure we are on the home page where overlays live
+    if (pathname !== '/') {
+      router.push('/');
+    }
+    setActiveWindow(w);
+    setIsOpen(false);
+  };
+
+  return (
+    <>
+      {/* Hamburger (Fixed Top Right) */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="retro-btn"
+        style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          zIndex: 9999,
+          width: '50px',
+          height: '40px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '6px',
+        }}
+      >
+        <div style={{ width: '24px', height: '3px', background: 'black' }} />
+        <div style={{ width: '24px', height: '3px', background: 'black' }} />
+        <div style={{ width: '24px', height: '3px', background: 'black' }} />
+      </button>
+
+      {/* Sidebar Panel */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: '320px',
+          backgroundColor: '#c0c0c0',
+          borderLeft: '2px solid white',
+          boxShadow: '-4px 0 10px rgba(0,0,0,0.5)',
+          zIndex: 9998,
+          transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform 0.3s ease-in-out',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {/* Header */}
+        <div className="retro-header" style={{ height: '40px', flexShrink: 0 }}>
+          <span>SysInfo.exe</span>
+          <button
+            onClick={() => setIsOpen(false)}
+            className="retro-btn"
+            style={{ padding: '0 8px', fontSize: '12px' }}
+          >
+            X
+          </button>
+        </div>
+
+        {/* Content */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px',
+          }}
+        >
+          {/* User Profile Card */}
+          {profile ? (
+            <div
+              className="retro-inset"
+              style={{
+                padding: '16px',
+                backgroundColor: '#f0f0f0',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+              }}
+            >
+              <div style={{ marginBottom: '16px' }}>
+                <Avatar
+                  gender={profile.gender}
+                  skinTone={profile.skin_tone}
+                  eyeColor={profile.eye_color}
+                  hairColor={profile.hair_color}
+                  hairStyle={profile.hair_style}
+                  equippedImage={profile.equipped_image}
+                  equippedHead={profile.equipped_head}
+                  equippedBody={profile.equipped_body}
+                  size={100}
+                />
+              </div>
+              <div
+                style={{
+                  fontWeight: 'bold',
+                  fontSize: '18px',
+                  borderBottom: '1px solid #ccc',
+                  width: '100%',
+                  textAlign: 'center',
+                  marginBottom: '8px',
+                }}
+              >
+                {profile.username}
+              </div>
+              <div
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  marginBottom: '8px',
+                }}
+              >
+                <span>LVL {profile.level}</span>
+                <span style={{ color: '#1e293b' }}>{profile.entrobucks} EB</span>
+              </div>
+              <div
+                style={{
+                  width: '100%',
+                  height: '10px',
+                  background: '#d1d5db',
+                  border: '1px solid #9ca3af',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    height: '100%',
+                    width: `${Math.min(100, (profile.xp / (profile.level * 500)) * 100)}%`,
+                    background: 'linear-gradient(90deg, #1d4ed8, #7c3aed)',
+                    transition: 'width 0.5s ease',
+                  }}
+                />
+              </div>
+              <div style={{ width: '100%', textAlign: 'right', fontSize: '10px', marginTop: '4px' }}>
+                {profile.xp} / {profile.level * 500} XP
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: '16px', textAlign: 'center' }}>Loading...</div>
+          )}
+
+          {/* Navigation Buttons (Not Links) */}
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <SidebarBtn label="Home Studio" active={activeWindow === 'none'} onClick={() => openWindow('none')} />
+            <SidebarBtn label="Marketplace" active={activeWindow === 'shop'} onClick={() => openWindow('shop')} />
+            <SidebarBtn label="Inventory" active={activeWindow === 'inventory'} onClick={() => openWindow('inventory')} />
+            <SidebarBtn label="Mission Log" active={activeWindow === 'quests'} onClick={() => openWindow('quests')} />
+            <div
+              style={{
+                height: '2px',
+                background: '#808080',
+                borderBottom: '1px solid white',
+                margin: '8px 0',
+              }}
+            />
+            <SidebarBtn label="Profile" active={activeWindow === 'profile'} onClick={() => openWindow('profile')} />
+          </nav>
+        </div>
+
+        {/* Footer */}
+        <div
+          style={{
+            padding: '16px',
+            borderTop: '1px solid #808080',
+            backgroundColor: '#c0c0c0',
+          }}
+        >
+          <button
+            onClick={() => {
+              supabase.auth.signOut();
+              window.location.href = '/login';
+            }}
+            className="retro-btn"
+            style={{ width: '100%', color: '#991b1b' }}
+          >
+            Log Off
+          </button>
+        </div>
+      </div>
+
+      {/* Backdrop */}
+      {isOpen && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9990 }}
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
+function SidebarBtn({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '8px 12px',
+        fontWeight: 'bold',
+        textAlign: 'left',
+        border: active ? '1px dotted white' : '2px solid transparent',
+        backgroundColor: active ? '#000080' : 'transparent',
+        color: active ? 'white' : 'black',
+        cursor: 'pointer',
+        width: '100%',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+--- END FILE: src/components/Sidebar.tsx ---
+
+--- START FILE: src/context/GameStateContext.tsx ---
+"use client";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+import type { Session } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabaseClient";
+
+export type Profile = {
+  id: string;
+  username: string;
+  avatar?: string | null;
+  entrobucks: number;
+  gender?: string;
+  skin_tone?: string;
+  eye_color?: string;
+  hair_color?: string;
+  hair_style?: string;
+  equipped_head?: string | null;
+  equipped_face?: string | null;
+  equipped_body?: string | null;
+  equipped_badge?: string | null;
+  equipped_image?: string | null;
+  xp: number;
+  level: number;
+};
+
+export type Quest = {
+  id: string;
+  title: string;
+  description?: string;
+  reward_entrobucks: number;
+  reward_xp: number;
+  reward_item?: string | null;
+  target_value?: number;
+  type?: string;
+  is_hidden?: boolean;
+};
+
+export type UserQuest = {
+  id: string;
+  user_id: string;
+  quest_id: string;
+  status: "not_started" | "in_progress" | "completed";
+  progress: number;
+};
+
+export type Item = {
+  id: string;
+  name: string;
+  description: string;
+  cost: number;
+  image_url: string;
+  type: string;
+  rarity?: string;
+  in_shop?: boolean;
+  slot?: string;
+};
+
+export type UserItem = {
+  id: string;
+  user_id: string;
+  item_id: string;
+  acquired_at: string;
+  item_details?: Item;
+  count?: number;
+};
+
+export type CosmeticSet = {
+  id: string;
+  name: string;
+  xp_reward: number;
+  is_hidden: boolean;
+  items: string[];
+};
+
+type WindowType = "none" | "inventory" | "shop" | "quests" | "profile";
+
+type GameState = {
+  session: Session | null;
+  profile: Profile | null;
+  loading: boolean;
+  refreshGameState: () => Promise<void>;
+  addEntrobucks: (amount: number, source?: string) => Promise<void>;
+  spendEntrobucks: (amount: number, reason?: string) => Promise<boolean>;
+  quests: Quest[];
+  userQuests: UserQuest[];
+  startQuest: (questId: string) => Promise<void>;
+  completeQuest: (questId: string) => Promise<void>;
+  incrementQuest: (questTitle: string, amount?: number) => Promise<void>;
+  shopItems: Item[];
+  inventory: UserItem[];
+  buyItem: (itemId: string) => Promise<{ success: boolean; message: string }>;
+  equipItem: (item: Item) => Promise<void>;
+  unequipItem: (slot: string) => Promise<void>;
+  cosmeticSets: CosmeticSet[];
+  claimedSets: string[];
+  claimSetBonus: (setId: string) => Promise<void>;
+  activeWindow: WindowType;
+  setActiveWindow: (w: WindowType) => void;
+  logTransaction: (type: string, amount: number, desc: string, itemName?: string) => Promise<void>;
+};
+
+const GameStateContext = createContext<GameState | undefined>(undefined);
+
+export function GameStateProvider({ children }: { children: React.ReactNode }) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [quests, setQuests] = useState<Quest[]>([]);
+  const [userQuests, setUserQuests] = useState<UserQuest[]>([]);
+  const [shopItems, setShopItems] = useState<Item[]>([]);
+  const [inventory, setInventory] = useState<UserItem[]>([]);
+  const [cosmeticSets, setCosmeticSets] = useState<CosmeticSet[]>([]);
+  const [claimedSets, setClaimedSets] = useState<string[]>([]);
+  const [activeWindow, setActiveWindow] = useState<WindowType>("none");
+
+  // --- LOGGING HELPER ---
+  async function logTransaction(type: string, amount: number, desc: string, itemName?: string) {
+    if (!session?.user) return;
+    // Fire and forget - don't await to block UI
+    supabase.from("transactions").insert({
+        user_id: session.user.id,
+        type, 
+        amount,
+        description: desc,
+        item_name: itemName
+    }).then(({ error }) => {
+        if (error) console.error("Log Error:", error);
+    });
+  }
+
+  const loadGameState = useCallback(async () => {
+    setLoading(true);
+    const { data: sessionData } = await supabase.auth.getSession();
+    const currentSession = sessionData.session;
+    setSession(currentSession);
+
+    const { data: questsData } = await supabase.from("quests").select("*");
+    setQuests(questsData || []);
+
+    const { data: itemsData } = await supabase.from("items").select("*");
+    setShopItems(itemsData?.filter((i) => i.in_shop !== false) || []);
+
+    const { data: setsData } = await supabase.from("cosmetic_sets").select("*, set_items(item_id)");
+    if (setsData) {
+        const formattedSets = setsData.map((s: any) => ({
+            id: s.id,
+            name: s.name,
+            xp_reward: s.xp_reward,
+            is_hidden: s.is_hidden,
+            items: s.set_items.map((si: any) => si.item_id)
+        }));
+        setCosmeticSets(formattedSets);
+    }
+
+    if (currentSession?.user) {
+      const userId = currentSession.user.id;
+
+      const { data: claimsData } = await supabase.from("user_set_claims").select("set_id").eq("user_id", userId);
+      if (claimsData) setClaimedSets(claimsData.map((c: any) => c.set_id));
+
+      const { data: profileData } = await supabase.from("profiles").select("*").eq("id", userId).single();
+      
+      setProfile(profileData ? {
+          id: profileData.id,
+          username: profileData.username,
+          avatar: profileData.avatar,
+          entrobucks: profileData.entrobucks ?? 0,
+          gender: profileData.gender,
+          skin_tone: profileData.skin_tone,
+          eye_color: profileData.eye_color,
+          hair_color: profileData.hair_color,
+          hair_style: profileData.hair_style,
+          equipped_image: profileData.equipped_image,
+          equipped_face: profileData.equipped_image,
+          equipped_badge: profileData.equipped_badge,
+          equipped_head: profileData.equipped_head,
+          equipped_body: profileData.equipped_body,
+          xp: profileData.xp ?? 0,
+          level: profileData.level ?? 1,
+      } : null);
+
+      const { data: userQuestData } = await supabase.from("user_quests").select("*").eq("user_id", userId);
+      setUserQuests(userQuestData || []);
+
+      const { data: rawInventory } = await supabase.from("user_items").select("*").eq("user_id", userId);
+      
+      if (rawInventory && itemsData) {
+        const groupedMap = new Map<string, UserItem>();
+        rawInventory.forEach((row) => {
+            const details = itemsData.find(i => i.id === row.item_id);
+            if (!details) return;
+            if (details.type === 'modifier') {
+                if (groupedMap.has(details.id)) {
+                    const existing = groupedMap.get(details.id)!;
+                    existing.count = (existing.count || 1) + 1;
+                } else {
+                    groupedMap.set(details.id, { ...row, item_details: details, count: 1 });
+                }
+            } else {
+                groupedMap.set(row.id, { ...row, item_details: details, count: 1 });
+            }
+        });
+        setInventory(Array.from(groupedMap.values()));
+      } else {
+        setInventory([]);
+      }
+    } else {
+      setProfile(null); setUserQuests([]); setInventory([]); setClaimedSets([]);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void loadGameState();
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, newSession) => { setSession(newSession); void loadGameState(); });
+    return () => { authListener.subscription.unsubscribe(); };
+  }, [loadGameState]);
+
+  async function addEntrobucks(amount: number, source = 'system') {
+    if (!session?.user || !profile) return;
+    const newAmount = profile.entrobucks + amount;
+    setProfile({ ...profile, entrobucks: newAmount });
+    await supabase.from("profiles").update({ entrobucks: newAmount }).eq("id", profile.id);
+    logTransaction('EARN', amount, `Received from ${source}`);
+  }
+
+  async function spendEntrobucks(amount: number, reason = 'purchase'): Promise<boolean> {
+    if (!session?.user || !profile) return false;
+    if (profile.entrobucks < amount) return false;
+    const newAmount = profile.entrobucks - amount;
+    setProfile({ ...profile, entrobucks: newAmount });
+    await supabase.from("profiles").update({ entrobucks: newAmount }).eq("id", profile.id);
+    logTransaction('SPEND', -amount, `Spent on ${reason}`);
+    return true;
+  }
+
+  async function startQuest(questId: string) {
+    if (!session?.user) return;
+    const existing = userQuests.find((q) => q.quest_id === questId);
+    if (existing && existing.status === 'in_progress') return; 
+    const { data, error } = await supabase.from("user_quests").insert({ user_id: session.user.id, quest_id: questId, status: "in_progress", progress: 0 }).select().single();
+    if (!error && data) {
+        setUserQuests((prev) => [...prev, data]);
+        logTransaction('QUEST', 0, `Started Quest: ${questId}`);
+    }
+  }
+  
+  async function completeQuest(questId: string) { 
+    if (!session?.user) return; 
+    const quest = quests.find((q) => q.id === questId); 
+    if (!quest) return; 
+    const existing = userQuests.find((q) => q.quest_id === questId); 
+    
+    const { data, error } = await supabase.from("user_quests").upsert({ user_id: session.user.id, quest_id: questId, status: "completed", progress: 100, id: existing?.id }, { onConflict: "user_id,quest_id" }).select().single(); 
+    
+    if (!error && data) { 
+        setUserQuests((prev) => prev.some((q) => q.quest_id === questId) ? prev.map((q) => (q.quest_id === questId ? { ...q, status: "completed", progress: 100 } : q)) : [...prev, data as UserQuest] ); 
+        
+        logTransaction('QUEST_COMPLETE', 0, `Completed Quest: ${quest.title}`);
+
+        if (quest.reward_entrobucks > 0) {
+            await addEntrobucks(quest.reward_entrobucks, `Quest Reward: ${quest.title}`);
+        } 
+        
+        if (quest.reward_xp > 0) { 
+            const { error: xpError } = await supabase.rpc("add_xp", { user_id: session.user.id, amount: quest.reward_xp }); 
+            if (!xpError) await loadGameState(); 
+        } 
+    } 
+  }
+
+  async function incrementQuest(questTitle: string, amount: number = 1) { 
+      if (!session?.user) return; 
+      const questDef = quests.find((q) => q.title === questTitle); 
+      if (!questDef) return; 
+      const userQuest = userQuests.find((uq) => uq.quest_id === questDef.id); 
+      if (!userQuest || userQuest.status === "completed") return; 
+      
+      const newProgress = (userQuest.progress || 0) + amount; 
+      const target = (questDef as any).target_value || 1; 
+      
+      if (newProgress >= target) { 
+          await completeQuest(questDef.id); 
+      } else { 
+          const { error } = await supabase.from("user_quests").update({ progress: newProgress }).eq("id", userQuest.id); 
+          if (!error) { 
+              setUserQuests((prev) => prev.map((uq) => uq.id === userQuest.id ? { ...uq, progress: newProgress } : uq)); 
+          } 
+      } 
+  }
+
+  async function buyItem(itemId: string): Promise<{ success: boolean; message: string }> {
+    if (!session?.user || !profile) return { success: false, message: "Not logged in" };
+    const item = shopItems.find(i => i.id === itemId);
+    if (!item) return { success: false, message: "Item not found" };
+    if (profile.entrobucks < item.cost) return { success: false, message: "Insufficient Entrobucks" };
+    
+    const alreadyOwns = inventory.some(i => i.item_id === itemId);
+    if (alreadyOwns && item.type !== "modifier") return { success: false, message: "You already own this item" };
+
+    const paid = await spendEntrobucks(item.cost, `Purchased ${item.name}`);
+    if (!paid) return { success: false, message: "Payment failed" };
+
+    const { data, error } = await supabase.from("user_items").insert({ user_id: session.user.id, item_id: itemId }).select().single();
+    if (error || !data) return { success: false, message: "Database error: " + error?.message };
+
+    // Log the item acquisition specifically
+    logTransaction('PURCHASE', -item.cost, `Bought Item`, item.name);
+
+    await loadGameState();
+    return { success: true, message: `Purchased ${item.name}!` };
+  }
+
+  async function equipItem(item: Item) {
+    if (!session?.user || !profile) return;
+    const updates: any = {};
+    const slot = item.slot || 'face';
+
+    if (slot === 'badge') updates.equipped_badge = item.image_url;
+    else if (slot === 'head') updates.equipped_head = item.name;
+    else if (slot === 'body') updates.equipped_body = item.name;
+    else { updates.equipped_image = item.name; updates.equipped_face = item.name; }
+
+    setProfile({ ...profile, ...updates });
+    await supabase.from("profiles").update(updates).eq("id", profile.id);
+  }
+
+  async function unequipItem(slot: string) {
+    if (!session?.user || !profile) return;
+    const updates: any = {};
+    if (slot === "head") updates.equipped_head = null;
+    else if (slot === "face") updates.equipped_image = null; 
+    else if (slot === "badge") updates.equipped_badge = null;
+    else if (slot === "body") updates.equipped_body = null;
+
+    if (Object.keys(updates).length === 0) return;
+    setProfile({ ...profile, ...updates });
+    await supabase.from("profiles").update(updates).eq("id", profile.id);
+  }
+
+  async function claimSetBonus(setId: string) {
+    if (!session?.user || !profile) return;
+    const set = cosmeticSets.find(s => s.id === setId);
+    if (!set) return;
+    if (claimedSets.includes(setId)) { alert("You have already claimed this set!"); return; }
+
+    const ownedItemIds = inventory.map(i => i.item_id);
+    const hasAll = set.items.every(reqId => ownedItemIds.includes(reqId));
+    if (!hasAll) { alert("You don't have all items in this set!"); return; }
+
+    const { error: claimError } = await supabase.from("user_set_claims").insert({ user_id: session.user.id, set_id: setId });
+    if (claimError) { console.error("Claim Error:", claimError); return; }
+
+    logTransaction('SET_BONUS', 0, `Completed Set: ${set.name}`);
+
+    const { error: xpError } = await supabase.rpc("add_xp", { user_id: session.user.id, amount: set.xp_reward });
+    if (!xpError) {
+        setClaimedSets(prev => [...prev, setId]);
+        await loadGameState();
+        alert(`SET COMPLETED! +${set.xp_reward} XP`);
+    }
+  }
+
+  return (
+    <GameStateContext.Provider
+      value={{
+        session, profile, loading, refreshGameState: loadGameState,
+        addEntrobucks, spendEntrobucks, quests, userQuests, startQuest, completeQuest, incrementQuest,
+        shopItems, inventory, buyItem, equipItem, unequipItem,
+        cosmeticSets, claimedSets, claimSetBonus,
+        activeWindow, setActiveWindow, logTransaction
+      }}
+    >
+      {children}
+    </GameStateContext.Provider>
+  );
+}
+
+export function useGameState() {
+  const ctx = useContext(GameStateContext);
+  if (!ctx) throw new Error("useGameState must be used within a GameStateProvider");
+  return ctx;
+}
+--- END FILE: src/context/GameStateContext.tsx ---
+
+--- START FILE: src/lib/supabaseClient.ts ---
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
+
+--- END FILE: src/lib/supabaseClient.ts ---
