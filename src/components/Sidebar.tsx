@@ -8,8 +8,12 @@ import Avatar from './Avatar';
 
 const FRAMER_URL = "https://entropyofficial.com";
 
-// Update props to accept startOpen
-export default function Sidebar({ startOpen = false }: { startOpen?: boolean }) {
+interface SidebarProps {
+  startOpen?: boolean;
+  onCloseAll: () => void;
+}
+
+export default function Sidebar({ startOpen = false, onCloseAll }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(startOpen);
   const { profile, activeWindow, setActiveWindow } = useGameState();
   const router = useRouter();
@@ -23,16 +27,7 @@ export default function Sidebar({ startOpen = false }: { startOpen?: boolean }) 
   // Helper to open window and close sidebar
   const openWindow = (w: 'none' | 'inventory' | 'shop' | 'quests' | 'profile') => {
     if (w === 'none') {
-      // 1. Close the internal window
-      setActiveWindow('none');
-
-      // 2. Send Signal to Framer to destroy the overlay
-      if (window.parent) {
-        window.parent.postMessage("CLOSE_OVERLAY", "*");
-      }
-
-      // 3. Fallback for standalone mode
-      if (!startOpen) setIsOpen(false);
+      onCloseAll(); // Call the parent close function
       return;
     }
     setActiveWindow(w);
@@ -89,7 +84,7 @@ export default function Sidebar({ startOpen = false }: { startOpen?: boolean }) 
         <div className="retro-header" style={{ height: '40px', flexShrink: 0 }}>
           <span>SysInfo.exe</span>
           <button
-            onClick={() => setIsOpen(false)}
+            onClick={onCloseAll}
             className="retro-btn"
             style={{ padding: '0 8px', fontSize: '12px' }}
           >

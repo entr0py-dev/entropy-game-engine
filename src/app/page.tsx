@@ -31,7 +31,7 @@ function GameEngineContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // --- WINDOW STATE (PERSISTENT SIZE/POSITION) ---
   const [winState, setWinState] = useState({
-    x: 100,
+    x: 50,
     y: 50,
     width: 1000,
     height: 700,
@@ -122,96 +122,129 @@ function GameEngineContent() {
         backgroundColor: isEmbed ? "transparent" : "#008080",
       }}
     >
-      {/* SIDEBAR */}
-      {(!isEmbed || sidebarOpen) && <Sidebar startOpen={sidebarOpen} />}
-
-      {/* DEBUG & MUSIC (Only show if NOT embedded) */}
-      {!isEmbed && (
-        <>
-          <div
-            style={{
-              position: "absolute",
-              top: 12,
-              left: 12,
-              zIndex: 200,
-              display: "flex",
-              gap: "8px",
-            }}
-          >
-            <DebugButton label="+1000 XP" onClick={() => addDebugXp(1000)} />
-            <DebugButton label="+10,000 XP" onClick={() => addDebugXp(10000)} />
-            <DebugButton
-              label="Reset Items"
-              onClick={async () => {
-                /* reset */
-              }}
-            />
-          </div>
-
-          <MusicPlayer />
-
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              zIndex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <div
-              style={{
-                padding: "20px",
-                backgroundColor: "#ff00ff",
-                color: "white",
-                border: "4px solid white",
-                fontWeight: "bold",
-              }}
-            >
-              HOME STUDIO PLACEHOLDER
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* DRAGGABLE WINDOW CONTAINER */}
-      {activeWindow !== "none" && (
-        <Rnd
-          size={{ width: winState.width, height: winState.height }}
-          position={{ x: winState.x, y: winState.y }}
-          onDragStop={(e, d) =>
-            setWinState(prev => ({ ...prev, x: d.x, y: d.y }))
-          }
-          onResizeStop={(e, direction, ref, delta, position) => {
-            setWinState({
-              width: parseInt(ref.style.width),
-              height: parseInt(ref.style.height),
-              ...position,
-            });
+      {/* LAYOUT CONTAINER: Allows Sidebar to push content */}
+      <div style={{ display: "flex", width: "100%", height: "100%" }}>
+        {/* DESKTOP AREA (Where windows live) */}
+        {/* This shrinks when sidebar is open to create a "Strict Clip" area */}
+        <div
+          style={{
+            flex: 1,
+            position: "relative",
+            // If sidebar is open, reserve 320px on the right
+            marginRight: !isEmbed || sidebarOpen ? "320px" : "0",
+            transition: "margin-right 0.3s ease",
           }}
-          minWidth={600}
-          minHeight={400}
-          bounds="window"
-          dragHandleClassName="retro-header"
-          style={{ zIndex: 1000, pointerEvents: "auto" }}
         >
-          <div style={{ width: "100%", height: "100%" }}>
-            {activeWindow === "inventory" && (
-              <InventoryPage isOverlay onClose={handleCloseApp} />
-            )}
-            {activeWindow === "shop" && (
-              <ShopPage isOverlay onClose={handleCloseApp} />
-            )}
-            {activeWindow === "quests" && (
-              <QuestLogPage isOverlay onClose={handleCloseApp} />
-            )}
-            {activeWindow === "profile" && (
-              <AvatarStudio isOverlay onClose={handleCloseApp} />
-            )}
+          {!isEmbed && (
+            <>
+              <div
+                style={{
+                  position: "absolute",
+                  top: 12,
+                  left: 12,
+                  zIndex: 200,
+                  display: "flex",
+                  gap: "8px",
+                }}
+              >
+                <DebugButton label="+1000 XP" onClick={() => addDebugXp(1000)} />
+                <DebugButton
+                  label="+10,000 XP"
+                  onClick={() => addDebugXp(10000)}
+                />
+                <DebugButton
+                  label="Reset Items"
+                  onClick={async () => {
+                    /* reset */
+                  }}
+                />
+              </div>
+
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  zIndex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "20px",
+                    backgroundColor: "#ff00ff",
+                    color: "white",
+                    border: "4px solid white",
+                    fontWeight: "bold",
+                  }}
+                >
+                  HOME STUDIO PLACEHOLDER
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* DRAGGABLE WINDOW CONTAINER */}
+          {activeWindow !== "none" && (
+            <Rnd
+              size={{ width: winState.width, height: winState.height }}
+              position={{ x: winState.x, y: winState.y }}
+              onDragStop={(e, d) =>
+                setWinState(prev => ({ ...prev, x: d.x, y: d.y }))
+              }
+              onResizeStop={(e, direction, ref, delta, position) => {
+                setWinState({
+                  width: parseInt(ref.style.width),
+                  height: parseInt(ref.style.height),
+                  ...position,
+                });
+              }}
+              minWidth={600}
+              minHeight={400}
+              bounds="parent" // Confine to this Desktop Area (avoids Sidebar overlap)
+              dragHandleClassName="retro-header"
+              style={{ zIndex: 1000, pointerEvents: "auto" }}
+            >
+              <div style={{ width: "100%", height: "100%" }}>
+                {activeWindow === "inventory" && (
+                  <InventoryPage isOverlay onClose={handleCloseApp} />
+                )}
+                {activeWindow === "shop" && (
+                  <ShopPage isOverlay onClose={handleCloseApp} />
+                )}
+                {activeWindow === "quests" && (
+                  <QuestLogPage isOverlay onClose={handleCloseApp} />
+                )}
+                {activeWindow === "profile" && (
+                  <AvatarStudio isOverlay onClose={handleCloseApp} />
+                )}
+              </div>
+            </Rnd>
+          )}
+
+          {/* MUSIC PLAYER: Always Visible, Bottom Left, Highest Z-Index */}
+          <div style={{ position: "fixed", bottom: 20, left: 20, zIndex: 2000 }}>
+            <MusicPlayer />
           </div>
-        </Rnd>
-      )}
+        </div>
+
+        {/* SIDEBAR: Fixed to Right, outside the Desktop flex area */}
+        {(!isEmbed || sidebarOpen) && (
+          <div
+            style={{
+              position: "absolute",
+              right: 0,
+              top: 0,
+              bottom: 0,
+              width: "320px",
+              zIndex: 1500,
+            }}
+          >
+            <Sidebar startOpen={sidebarOpen} onCloseAll={handleCloseApp} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
