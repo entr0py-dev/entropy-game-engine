@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 
 // --- CONFIG ---
 // REPLACE THIS with your actual Framer URL
-const FRAMER_HOME_URL = "https://entropyofficial.com"; 
+const FRAMER_HOME_URL = "https://www.entropyofficial.com"; 
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
