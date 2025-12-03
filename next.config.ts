@@ -5,12 +5,14 @@ const nextConfig = {
       {
         source: "/:path*",
         headers: [
-          { key: "Access-Control-Allow-Origin", value: "*" }, // Allow CORS
-          { key: "X-Frame-Options", value: "ALLOWALL" }, // Allow Embedding
+          // Allow any domain to fetch resources (fixes some fetch errors)
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Access-Control-Allow-Methods", value: "GET,OPTIONS,PATCH,DELETE,POST,PUT" },
+          
+          // Allow the app to be embedded in an iframe
           { 
             key: "Content-Security-Policy", 
-            // CRITICAL: Explicitly allow your Framer domain
-            value: "frame-ancestors * https://*.framer.website https://www.entropyofficial.com https://entropyofficial.com;" 
+            value: "frame-ancestors 'self' https://*.framer.website https://www.entropyofficial.com https://entropyofficial.com;" 
           },
         ],
       },
