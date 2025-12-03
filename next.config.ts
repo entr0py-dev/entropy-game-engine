@@ -1,13 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Allow this app to be embedded in iframes (like on Framer)
   async headers() {
     return [
       {
         source: "/:path*",
         headers: [
-          { key: "X-Frame-Options", value: "ALLOWALL" },
-          { key: "Content-Security-Policy", value: "frame-ancestors *" },
+          { key: "Access-Control-Allow-Origin", value: "*" }, // Allow CORS
+          { key: "X-Frame-Options", value: "ALLOWALL" }, // Allow Embedding
+          { 
+            key: "Content-Security-Policy", 
+            // CRITICAL: Explicitly allow your Framer domain
+            value: "frame-ancestors * https://*.framer.website https://www.entropyofficial.com https://entropyofficial.com;" 
+          },
         ],
       },
     ];
