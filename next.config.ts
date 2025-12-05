@@ -5,15 +5,11 @@ const nextConfig = {
       {
         source: "/:path*",
         headers: [
-          // Allow any domain to fetch resources (fixes some fetch errors)
           { key: "Access-Control-Allow-Origin", value: "*" },
           { key: "Access-Control-Allow-Methods", value: "GET,OPTIONS,PATCH,DELETE,POST,PUT" },
-          
-          // Allow the app to be embedded in an iframe
-          { 
-            key: "Content-Security-Policy", 
-            value: "frame-ancestors 'self' https://*.framer.website https://www.entropyofficial.com https://entropyofficial.com;" 
-          },
+          { key: "Access-Control-Allow-Headers", value: "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version" },
+          // Allows embedding on your specific domain
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self' https://*.framer.website https://www.entropyofficial.com https://entropyofficial.com;" },
         ],
       },
     ];
