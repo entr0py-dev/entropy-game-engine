@@ -3,9 +3,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-// --- CONFIG ---
-// REPLACE THIS with your actual Framer URL
-const FRAMER_HOME_URL = "https://www.entropyofficial.com"; 
+const FRAMER_URL = "https://www.entropyofficial.com";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -17,7 +15,7 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -25,9 +23,16 @@ export default function LoginPage() {
     if (error) {
       setError(error.message);
       setLoading(false);
+    } else if (data.session) {
+      // Manual Redirect constructing the hash manually to ensure Framer sees it
+      const access = data.session.access_token;
+      const refresh = data.session.refresh_token;
+
+      // Redirect back to Framer with tokens in the URL fragment
+      window.location.href = `${FRAMER_URL}/#access_token=${access}&refresh_token=${refresh}&type=recovery`;
     } else {
-      // FIX: Redirect to Framer Home instead of local placeholder
-      window.location.href = FRAMER_HOME_URL;
+      setError("Unable to start session. Please try again.");
+      setLoading(false);
     }
   }
 
