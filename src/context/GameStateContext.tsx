@@ -255,11 +255,47 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     if (!session?.user) return;
     const quest = quests.find((q) => q.id === questId); 
     if (!quest) return; 
+    
     const existing = userQuests.find((q) => q.quest_id === questId);
-    const { data, error } = await supabase.from("user_quests").upsert({ user_id: session.user.id, quest_id: questId, status: "completed", progress: 100, id: existing?.id }, { onConflict: "user_id,quest_id" }).select().single();
+    
+    const { data, error } = await supabase
+        .from("user_quests")
+        .upsert({ 
+            user_id: session.user.id, 
+            quest_id: questId, 
+            status: "completed", 
+            progress: 100, 
+            id: existing?.id 
+        }, { onConflict: "user_id,quest_id" })
+        .select()
+        .single();
+
     if (!error && data) { 
-        setUserQuests((prev) => prev.some((q) => q.quest_id === questId) ? prev.map((q) => (q.quest_id === questId ? { ...q, status: "completed", progress: 100 } : q)) : [...prev, data as UserQuest] );
+        setUserQuests((prev) => 
+            prev.some((q) => q.quest_id === questId) 
+                ? prev.map((q) => (q.quest_id === questId ? { ...q, status: "completed", progress: 100 } : q)) 
+                : [...prev, data as UserQuest] 
+        );
+        
         logTransaction('QUEST_COMPLETE', 0, `Completed Quest: ${quest.title}`);
+
+        // --- NEW: FETCH ITEM NAME FOR TOAST ---
+        let rewardItemName = undefined;
+        if (quest.reward_item) {
+             // If reward_item is a UUID, we might need to find the name. 
+             // If it's stored as a name string in DB (as per our previous fix), we use it directly.
+             // We check the shopItems array to see if we can find a pretty name.
+             const shopItem = shopItems.find(i => i.id === quest.reward_item || i.name === quest.reward_item);
+             rewardItemName = shopItem ? shopItem.name : quest.reward_item;
+        }
+
+        // --- TRIGGER EXCITING TOAST ---
+        showToast(quest.title, 'quest', {
+            xp: quest.reward_xp,
+            entrobucks: quest.reward_entrobucks,
+            itemName: rewardItemName,
+            profile: profile // Pass profile so Avatar preview renders correctly
+        });
 
         if (quest.reward_entrobucks > 0) {
             await addEntrobucks(quest.reward_entrobucks, `Quest Reward: ${quest.title}`);
@@ -269,7 +305,6 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             const { error: xpError } = await supabase.rpc("add_xp", { user_id: session.user.id, amount: quest.reward_xp });
             if (!xpError) await loadGameState(); 
         } 
-        showToast(`Mission Complete: ${quest.title}`, "success");
     } 
   }
 
