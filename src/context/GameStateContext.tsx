@@ -221,6 +221,25 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     return () => { authListener.subscription.unsubscribe(); };
   }, [loadGameState]);
 
+  // --- AUTO-COMPLETE "WELCOME" QUEST ON LOGIN ---
+  useEffect(() => {
+    if (!profile || quests.length === 0 || loading) return;
+
+    const welcomeTitle = "Welcome to the ENTROVERSE";
+    const welcomeQuest = quests.find(q => q.title === welcomeTitle);
+
+    if (welcomeQuest) {
+        // Check if user has already done it
+        const isDone = userQuests.some(uq => uq.quest_id === welcomeQuest.id && uq.status === 'completed');
+        
+        // If NOT done, complete it immediately
+        if (!isDone) {
+            console.log("First login detected. Completing Welcome Quest...");
+            completeQuest(welcomeQuest.id);
+        }
+    }
+  }, [profile, quests, userQuests, loading]);
+
   async function addEntrobucks(amount: number, source = 'system') {
     if (!session?.user || !profile) return;
     const newAmount = profile.entrobucks + amount;
@@ -258,49 +277,50 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     
     const existing = userQuests.find((q) => q.quest_id === questId);
     
-    const { data, error } = await supabase
-        .from("user_quests")
-        .upsert({ 
-            user_id: session.user.id, 
-            quest_id: questId, 
-            status: "completed", 
-            progress: 100, 
-            id: existing?.id 
-        }, { onConflict: "user_id,quest_id" })
-        .select()
-        .single();
+    // 1. Mark Complete in DB
+    const { data, error } = await supabase.from("user_quests").upsert({ 
+        user_id: session.user.id, 
+        quest_id: questId, 
+        status: "completed", 
+        progress: 100, 
+        id: existing?.id 
+    }, { onConflict: "user_id,quest_id" }).select().single();
 
     if (!error && data) { 
-        setUserQuests((prev) => 
-            prev.some((q) => q.quest_id === questId) 
-                ? prev.map((q) => (q.quest_id === questId ? { ...q, status: "completed", progress: 100 } : q)) 
-                : [...prev, data as UserQuest] 
-        );
+        // Update Local State
+        setUserQuests((prev) => prev.some((q) => q.quest_id === questId) ? prev.map((q) => (q.quest_id === questId ? { ...q, status: "completed", progress: 100 } : q)) : [...prev, data as UserQuest] );
         
         logTransaction('QUEST_COMPLETE', 0, `Completed Quest: ${quest.title}`);
 
-        // --- NEW: FETCH ITEM NAME FOR TOAST ---
+        // 2. Award Primary Item (white top)
         let rewardItemName = undefined;
         if (quest.reward_item) {
-             // If reward_item is a UUID, we might need to find the name. 
-             // If it's stored as a name string in DB (as per our previous fix), we use it directly.
-             // We check the shopItems array to see if we can find a pretty name.
-             const shopItem = shopItems.find(i => i.id === quest.reward_item || i.name === quest.reward_item);
-             rewardItemName = shopItem ? shopItem.name : quest.reward_item;
+             const { data: itemData } = await supabase.from("items").select("id, name").eq("name", quest.reward_item).maybeSingle();
+             
+             if (itemData) {
+                 await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: itemData.id });
+                 rewardItemName = itemData.name;
+             }
         }
 
-        // --- TRIGGER EXCITING TOAST ---
+        // 3. [BONUS] Award "black top" for the Welcome Quest
+        if (quest.title === "Welcome to the ENTROVERSE") {
+            const { data: blackTop } = await supabase.from("items").select("id").eq("name", "black top").maybeSingle();
+            if (blackTop) {
+                await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: blackTop.id });
+            }
+        }
+
+        // 4. Trigger Toast
         showToast(quest.title, 'quest', {
             xp: quest.reward_xp,
             entrobucks: quest.reward_entrobucks,
-            itemName: rewardItemName,
-            profile: profile // Pass profile so Avatar preview renders correctly
+            itemName: rewardItemName, // Shows "white top" in the notification
+            profile: profile 
         });
 
-        if (quest.reward_entrobucks > 0) {
-            await addEntrobucks(quest.reward_entrobucks, `Quest Reward: ${quest.title}`);
-        } 
-        
+        // 5. Award Currency & XP
+        if (quest.reward_entrobucks > 0) await addEntrobucks(quest.reward_entrobucks, `Quest Reward: ${quest.title}`);
         if (quest.reward_xp > 0) { 
             const { error: xpError } = await supabase.rpc("add_xp", { user_id: session.user.id, amount: quest.reward_xp });
             if (!xpError) await loadGameState(); 
