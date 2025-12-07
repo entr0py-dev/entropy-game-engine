@@ -240,14 +240,16 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     }
   }, [profile, quests, userQuests, loading]);
 
-  // --- LEVEL UP LISTENER ---
+// --- LEVEL UP LISTENER ---
   useEffect(() => {
-    if (!profile || quests.length === 0) return;
+    // SAFETY: Don't check quests until the game has fully loaded the user's data
+    if (loading || !profile || quests.length === 0) return;
 
     const checkLevelQuest = async (questTitle: string, levelReq: number) => {
-        // Strict check: Only complete if user is AT LEAST the required level
         if (profile.level >= levelReq) {
             const quest = quests.find(q => q.title === questTitle);
+            
+            // Strictly check if we already finished it
             const isDone = userQuests.some(uq => uq.quest_id === quest?.id && uq.status === 'completed');
             
             if (quest && !isDone) {
@@ -256,14 +258,13 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    // Define Milestones
-    checkLevelQuest('ENTROPIC NOVICE', 5);    // New: Tin Hat
-    checkLevelQuest('ENTROPIC INITIATE', 10); // Initiate Badge
-    checkLevelQuest('ENTROPIC ADEPT', 15);    // New: Boiler Suit
-    checkLevelQuest('ENTROPIC EXPLORER', 20); // Max Level / Explorer Badge
+    checkLevelQuest('ENTROPIC NOVICE', 5);
+    checkLevelQuest('ENTROPIC INITIATE', 10);
+    checkLevelQuest('ENTROPIC ADEPT', 15);
+    checkLevelQuest('ENTROPIC EXPLORER', 20);
     
-  }, [profile?.level, quests, userQuests]);
-
+  }, [profile?.level, quests, userQuests, loading]); // Added loading dependency
+  
   async function addEntrobucks(amount: number, source = 'system') {
     if (!session?.user || !profile) return;
     const newAmount = profile.entrobucks + amount;
@@ -296,18 +297,26 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
   
   async function completeQuest(questId: string) { 
     if (!session?.user) return;
+
+    // --- 1. SAFETY GUARD: Check Local State First ---
+    // If we already know this quest is done, STOP immediately.
+    // This prevents re-toasting on page reloads/sidebar toggles.
+    const existingLocal = userQuests.find((q) => q.quest_id === questId);
+    if (existingLocal?.status === 'completed') {
+        return; 
+    }
+    // ------------------------------------------------
+
     const quest = quests.find((q) => q.id === questId); 
     if (!quest) return; 
     
-    const existing = userQuests.find((q) => q.quest_id === questId);
-    
-    // 1. Mark Complete in DB
+    // 2. Mark Complete in DB
     const { data, error } = await supabase.from("user_quests").upsert({ 
         user_id: session.user.id, 
         quest_id: questId, 
         status: "completed", 
         progress: 100, 
-        id: existing?.id 
+        id: existingLocal?.id 
     }, { onConflict: "user_id,quest_id" }).select().single();
 
     if (!error && data) { 
@@ -316,34 +325,37 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         
         logTransaction('QUEST_COMPLETE', 0, `Completed Quest: ${quest.title}`);
 
-        // 2. Award Primary Item (white top)
+        // 3. Award Primary Item
         let rewardItemName = undefined;
         if (quest.reward_item) {
              const { data: itemData } = await supabase.from("items").select("id, name").eq("name", quest.reward_item).maybeSingle();
-             
              if (itemData) {
                  await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: itemData.id });
                  rewardItemName = itemData.name;
              }
         }
 
-        // 3. [BONUS] Award "black top" for the Welcome Quest
+        // 4. [BONUS] Award "black top" for the Welcome Quest
         if (quest.title === "Welcome to the ENTROVERSE") {
-            const { data: blackTop } = await supabase.from("items").select("id").eq("name", "black top").maybeSingle();
+            const { data: blackTop } = await supabase.from("items").select("id").eq("name", "Default Black Top").maybeSingle();
             if (blackTop) {
                 await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: blackTop.id });
             }
         }
 
-        // 4. Trigger Toast
+        // 5. Refresh Inventory
+        const { data: newInv } = await supabase.from("user_items").select("*, item_details:items(*)").eq("user_id", session.user.id);
+        if (newInv) setInventory(newInv as any);
+
+        // 6. Trigger Toast
         showToast(quest.title, 'quest', {
             xp: quest.reward_xp,
             entrobucks: quest.reward_entrobucks,
-            itemName: rewardItemName, // Shows "white top" in the notification
+            itemName: rewardItemName,
             profile: profile 
         });
 
-        // 5. Award Currency & XP
+        // 7. Award Currency & XP
         if (quest.reward_entrobucks > 0) await addEntrobucks(quest.reward_entrobucks, `Quest Reward: ${quest.title}`);
         if (quest.reward_xp > 0) { 
             const { error: xpError } = await supabase.rpc("add_xp", { user_id: session.user.id, amount: quest.reward_xp });
