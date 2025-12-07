@@ -339,7 +339,11 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     
     const paid = await spendEntrobucks(item.cost, `Purchased ${item.name}`);
     if (!paid) { showToast("Payment failed", "error"); return; }
-    const { error } = await supabase.from("user_items").insert({ user_id: session.user.id, item_id: itemId }).select().single();
+    // Use the RPC function to handle stacking automatically
+    const { error } = await supabase.rpc('add_item', { 
+        p_user_id: session.user.id, 
+        p_item_id: itemId 
+    });
     if (error) { showToast("Database Error", "error"); return; }
     logTransaction('PURCHASE', -item.cost, `Bought Item`, item.name);
 
