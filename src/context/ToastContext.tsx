@@ -33,6 +33,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     const id = Date.now();
     setToasts((prev) => [...prev, { id, message, type, data }]);
     
+    // --- ADD THIS BLOCK ---
+    // Send signal to Framer Parent (GlobalToaster)
+    if (typeof window !== 'undefined' && window.parent) {
+        window.parent.postMessage({
+            type: 'SHOW_TOAST',
+            payload: { message, toastType: type, data }
+        }, '*');
+    }
+    // ----------------------
+    
     // Auto-dismiss standard messages quickly, but keep Quests longer (6s) to read rewards
     const duration = type === 'quest' ? 6000 : 3000;
     setTimeout(() => {
