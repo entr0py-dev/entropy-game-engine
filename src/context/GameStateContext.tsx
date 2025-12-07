@@ -240,6 +240,30 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     }
   }, [profile, quests, userQuests, loading]);
 
+  // --- LEVEL UP LISTENER ---
+  useEffect(() => {
+    if (!profile || quests.length === 0) return;
+
+    const checkLevelQuest = async (questTitle: string, levelReq: number) => {
+        // Strict check: Only complete if user is AT LEAST the required level
+        if (profile.level >= levelReq) {
+            const quest = quests.find(q => q.title === questTitle);
+            const isDone = userQuests.some(uq => uq.quest_id === quest?.id && uq.status === 'completed');
+            
+            if (quest && !isDone) {
+                await completeQuest(quest.id);
+            }
+        }
+    };
+
+    // Define Milestones
+    checkLevelQuest('ENTROPIC NOVICE', 5);    // New: Tin Hat
+    checkLevelQuest('ENTROPIC INITIATE', 10); // Initiate Badge
+    checkLevelQuest('ENTROPIC ADEPT', 15);    // New: Boiler Suit
+    checkLevelQuest('ENTROPIC EXPLORER', 20); // Max Level / Explorer Badge
+    
+  }, [profile?.level, quests, userQuests]);
+
   async function addEntrobucks(amount: number, source = 'system') {
     if (!session?.user || !profile) return;
     const newAmount = profile.entrobucks + amount;
