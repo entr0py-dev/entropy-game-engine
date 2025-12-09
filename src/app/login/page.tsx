@@ -59,10 +59,9 @@ export default function LoginPage() {
       setError("");
       setMessage("");
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    // This sends them to the route we just created above
-    // We pass the final destination (Framer) as the 'next' parameter
-    redirectTo: `${window.location.origin}/auth/callback?next=https://www.entropyofficial.com`,
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    // We must send them to the Vercel app first to process the code
+    redirectTo: `${VERCEL_URL}/auth/callback?next=https://www.entropyofficial.com`,
 });
 
       if (error) {
