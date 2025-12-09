@@ -11,13 +11,13 @@ const TRACKS = [
     url: "/music/GENB_VERTIGO_1.mp3" 
   }, 
   { 
-    title: "BREATHE (Transhumanist E.P)", 
-    artist: "VERTIGO", 
+    title: "EMPTY SPACE (Transhumanist E.P)", 
+    artist: "GEN B", 
     url: "/music/GENB_VERTIGO_2.mp3" 
   },
   { 
-    title: "EMPTY SPACE", 
-    artist: "GEN B", 
+    title: "BREATHE (Transhumanist E.P)", 
+    artist: "VERTIGO", 
     url: "/music/GENB_VERTIGO_3.mp3" 
   },
 ];
