@@ -116,6 +116,8 @@ export default function AvatarStudio({ isOverlay, onClose }: OverlayProps) {
                 
                 {/* LEFT: PREVIEW & USERNAME */}
                 <div className="retro-inset" style={{ padding: '30px', backgroundColor: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: '20px' }}>
+                    
+                    {/* AVATAR SCALE CONTAINER */}
                     <div style={{ transform: 'scale(1.5)', marginBottom: '10px' }}>
                         <Avatar 
                           gender={gender} 
@@ -131,8 +133,8 @@ export default function AvatarStudio({ isOverlay, onClose }: OverlayProps) {
                         />
                     </div>
                     
-                    {/* --- USERNAME INPUT --- */}
-                    <div style={{ width: '100%', maxWidth: '200px' }}>
+                    {/* --- USERNAME INPUT (Added Margin Top) --- */}
+                    <div style={{ width: '100%', maxWidth: '200px', marginTop: '25px' }}>
                         <label className="text-xs font-bold block mb-1 uppercase text-gray-500">Codename</label>
                         <input 
                             type="text" 
