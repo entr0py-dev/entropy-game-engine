@@ -49,29 +49,24 @@ export default function LoginPage() {
     }
   }
 
-  // --- PASSWORD RESET FUNCTION ---
+// 2. Password Reset (Must bounce through Vercel)
   async function handleResetPassword() {
-      if (!email) {
-          setError("Please enter your email address.");
-          return;
-      }
+      if (!email) { setError("Please enter your email address."); return; }
       setLoading(true);
-      setError("");
-      setMessage("");
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    // We must send them to the Vercel app first to process the code
-    redirectTo: `${VERCEL_URL}/auth/callback?next=https://www.entropyofficial.com`,
-});
+      // REPLACE THIS WITH YOUR ACTUAL VERCEL APP URL
+      // (e.g., https://entropy-game-engine.vercel.app)
+      const VERCEL_BACKEND = "https://entropy-game-engine.vercel.app"; 
 
-      if (error) {
-          setError(error.message);
-      } else {
-          setMessage("Recovery signal sent. Check your email.");
-      }
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          // The email link goes to Vercel -> checks code -> forwards to Framer
+          redirectTo: `${VERCEL_BACKEND}/auth/callback?next=${FRAMER_ORIGIN}`, 
+      });
+
+      if (error) setError(error.message);
+      else setMessage("Recovery signal sent. Check your email.");
       setLoading(false);
   }
-
   return (
     <div className="flex flex-col items-center justify-center h-screen gap-4 bg-[#008080]">
       <h1 className="text-3xl font-bold text-white font-mono">
