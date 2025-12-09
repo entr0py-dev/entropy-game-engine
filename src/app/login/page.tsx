@@ -60,9 +60,10 @@ export default function LoginPage() {
       setMessage("");
 
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          // Redirects them to home, logged in, where they can change password in profile (future feature)
-          redirectTo: `${FRAMER_ORIGIN}/?reset_password=true`, 
-      });
+    // This sends them to the route we just created above
+    // We pass the final destination (Framer) as the 'next' parameter
+    redirectTo: `${window.location.origin}/auth/callback?next=https://www.entropyofficial.com`,
+});
 
       if (error) {
           setError(error.message);
