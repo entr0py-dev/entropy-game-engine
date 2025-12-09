@@ -27,9 +27,9 @@ function GameEngineContent() {
 
   // --- STATE ---
   const isEmbed = searchParams.get("embed") === "true";
-  // We use local state for the sidebar so we can close it programmatically regardless of the URL parameter
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  // --- WINDOW STATE (PERSISTENT SIZE/POSITION) ---
+  
+  // Window State
   const [winState, setWinState] = useState({
     x: 50,
     y: 50,
@@ -37,27 +37,20 @@ function GameEngineContent() {
     height: 700,
   });
 
-  // Sync URL params on load
+  // Sync URL params
   useEffect(() => {
     const win = searchParams.get("window");
     const side = searchParams.get("sidebar") === "true";
-
     if (win) setActiveWindow(win as any);
     if (side) setSidebarOpen(true);
   }, [searchParams, setActiveWindow]);
 
-  // The "Master Close" function
   const handleCloseApp = () => {
     setActiveWindow("none");
     setSidebarOpen(false);
-
-    // Optional: Send signal to Framer (if you have a listener set up)
-    if (window.parent) {
-      window.parent.postMessage("CLOSE_OVERLAY", "*");
-    }
+    if (window.parent) window.parent.postMessage("CLOSE_OVERLAY", "*");
   };
 
-  // Helper to add XP
   async function addDebugXp(amount: number) {
     if (!session?.user || !profile) return;
     const { error: rpcError } = await supabase.rpc("add_xp", {
@@ -66,28 +59,15 @@ function GameEngineContent() {
     });
     if (!rpcError) {
       await refreshGameState();
-      return;
     }
-    // Fallback logic...
-    let xpPool = (profile.xp ?? 0) + amount;
-    let level = profile.level ?? 1;
-    while (xpPool >= level * 500) {
-      xpPool -= level * 500;
-      level += 1;
-    }
-    await supabase
-      .from("profiles")
-      .update({ xp: xpPool, level })
-      .eq("id", session.user.id);
-    await refreshGameState();
   }
 
-  // Auth Redirect (Only if NOT embedded - embeds handle auth silently or show empty state)
+  // Auth Redirect
   useEffect(() => {
     if (!isEmbed && !loading && !session) window.location.href = "/login";
   }, [loading, session, isEmbed]);
 
-  // Profile Creation...
+  // Profile Auto-Create
   useEffect(() => {
     async function ensureProfile() {
       if (loading || creatingProfile.current) return;
@@ -95,7 +75,7 @@ function GameEngineContent() {
       creatingProfile.current = true;
       const rawName = session.user.email?.split("@")[0] || "operative";
       const safeName = rawName.replace(/[^a-zA-Z0-9_]/g, "");
-      const { error } = await supabase.from("profiles").insert({
+      await supabase.from("profiles").insert({
         id: session.user.id,
         username: safeName,
         avatar: "default",
@@ -103,96 +83,58 @@ function GameEngineContent() {
         xp: 0,
         level: 1,
       });
-      if (!error) await refreshGameState();
+      await refreshGameState();
       creatingProfile.current = false;
     }
     void ensureProfile();
   }, [loading, session, profile, refreshGameState]);
 
-  if (loading) return null; // Render nothing while loading in embed mode
+  if (loading) return null;
 
-  // --- RENDER LOGIC ---
   return (
     <div
       style={{
         position: "relative",
         width: "100vw",
         height: "100vh",
-        overflow: "hidden",
+        overflow: "hidden", // CRITICAL: Locks body scroll
         backgroundColor: isEmbed ? "transparent" : "#008080",
+        overscrollBehavior: "none", // Stops "bounce" effect on Mac
       }}
     >
-      {/* LAYOUT CONTAINER: Allows Sidebar to push content */}
       <div style={{ display: "flex", width: "100%", height: "100%" }}>
-        {/* DESKTOP AREA (Where windows live) */}
-        {/* This shrinks when sidebar is open to create a "Strict Clip" area */}
+        
+        {/* DESKTOP AREA */}
         <div
           style={{
             flex: 1,
             position: "relative",
-            // If sidebar is open, reserve 320px on the right
             marginRight: !isEmbed || sidebarOpen ? "320px" : "0",
             transition: "margin-right 0.3s ease",
+            overflow: "hidden", // Ensures no background scroll
           }}
         >
           {!isEmbed && (
             <>
-              <div
-                style={{
-                  position: "absolute",
-                  top: 12,
-                  left: 12,
-                  zIndex: 200,
-                  display: "flex",
-                  gap: "8px",
-                }}
-              >
+              {/* DEBUG BUTTONS */}
+              <div style={{ position: "absolute", top: 12, left: 12, zIndex: 200, display: "flex", gap: "8px" }}>
                 <DebugButton label="+1000 XP" onClick={() => addDebugXp(1000)} />
-                <DebugButton
-                  label="+10,000 XP"
-                  onClick={() => addDebugXp(10000)}
-                />
-                <DebugButton
-                  label="Reset Items"
-                  onClick={async () => {
-                    /* reset */
-                  }}
-                />
+                <DebugButton label="+10k XP" onClick={() => addDebugXp(10000)} />
               </div>
-
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  zIndex: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <div
-                  style={{
-                    padding: "20px",
-                    backgroundColor: "#ff00ff",
-                    color: "white",
-                    border: "4px solid white",
-                    fontWeight: "bold",
-                  }}
-                >
+              <div style={{ position: "absolute", inset: 0, zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ padding: "20px", backgroundColor: "#ff00ff", color: "white", border: "4px solid white", fontWeight: "bold" }}>
                   HOME STUDIO PLACEHOLDER
                 </div>
               </div>
             </>
           )}
 
-          {/* DRAGGABLE WINDOW CONTAINER */}
+          {/* DRAGGABLE WINDOW */}
           {activeWindow !== "none" && (
             <Rnd
               size={{ width: winState.width, height: winState.height }}
               position={{ x: winState.x, y: winState.y }}
-              onDragStop={(e, d) =>
-                setWinState(prev => ({ ...prev, x: d.x, y: d.y }))
-              }
+              onDragStop={(e, d) => setWinState(prev => ({ ...prev, x: d.x, y: d.y }))}
               onResizeStop={(e, direction, ref, delta, position) => {
                 setWinState({
                   width: parseInt(ref.style.width),
@@ -202,45 +144,33 @@ function GameEngineContent() {
               }}
               minWidth={600}
               minHeight={400}
-              bounds="parent" // Confine to this Desktop Area (avoids Sidebar overlap)
-              dragHandleClassName="retro-header"
+              bounds="parent"
+              dragHandleClassName="retro-header" // Only drag via this class
+              enableUserSelectHack={false} // Smoother interaction inside window
               style={{ zIndex: 1000, pointerEvents: "auto" }}
             >
-              <div style={{ width: "100%", height: "100%" }}>
-                {activeWindow === "inventory" && (
-                  <InventoryPage isOverlay onClose={handleCloseApp} />
-                )}
-                {activeWindow === "shop" && (
-                  <ShopPage isOverlay onClose={handleCloseApp} />
-                )}
-                {activeWindow === "quests" && (
-                  <QuestLogPage isOverlay onClose={handleCloseApp} />
-                )}
-                {activeWindow === "profile" && (
-                  <AvatarStudio isOverlay onClose={handleCloseApp} />
-                )}
+              {/* STOP SCROLL PROPAGATION WRAPPER */}
+              <div 
+                style={{ width: "100%", height: "100%" }}
+                onWheel={(e) => e.stopPropagation()} // The Magic Fix: Stops scroll from bubbling to body
+              >
+                {activeWindow === "inventory" && <InventoryPage isOverlay onClose={handleCloseApp} />}
+                {activeWindow === "shop" && <ShopPage isOverlay onClose={handleCloseApp} />}
+                {activeWindow === "quests" && <QuestLogPage isOverlay onClose={handleCloseApp} />}
+                {activeWindow === "profile" && <AvatarStudio isOverlay onClose={handleCloseApp} />}
               </div>
             </Rnd>
           )}
 
-          {/* MUSIC PLAYER: Always Visible, Bottom Left, Highest Z-Index */}
+          {/* MUSIC PLAYER */}
           <div style={{ position: "fixed", bottom: 20, left: 20, zIndex: 2000 }}>
             <MusicPlayer />
           </div>
         </div>
 
-        {/* SIDEBAR: Fixed to Right, outside the Desktop flex area */}
+        {/* SIDEBAR */}
         {(!isEmbed || sidebarOpen) && (
-          <div
-            style={{
-              position: "absolute",
-              right: 0,
-              top: 0,
-              bottom: 0,
-              width: "320px",
-              zIndex: 1500,
-            }}
-          >
+          <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "320px", zIndex: 1500 }}>
             <Sidebar startOpen={sidebarOpen} onCloseAll={handleCloseApp} />
           </div>
         )}
@@ -257,19 +187,9 @@ export default function HomePage() {
   );
 }
 
-// ... DebugButton component ...
-function DebugButton({
-  label,
-  onClick,
-}: {
-  label: string;
-  onClick: () => void;
-}) {
+function DebugButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button
-      onClick={onClick}
-      className="bg-black text-white p-2 border border-gray-500 rounded text-xs"
-    >
+    <button onClick={onClick} className="bg-black text-white p-2 border border-gray-500 rounded text-xs hover:bg-gray-800">
       {label}
     </button>
   );
