@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 // --- CONFIGURATION ---
 const SUPABASE_URL = "https://uyufenhltvwxypldaemj.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5dWZlbmhsdHZ3eHlwbGRhZW1qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5OTYwNjUsImV4cCI6MjA3ODU3MjA2NX0.X4kJCvS6bK207thqCBpgcRTrV_n0N7k0kbAm9E_xdsc";
 
-export default function AuthCallbackPage() {
-    const router = useRouter();
+function CallbackContent() {
     const searchParams = useSearchParams();
     const [status, setStatus] = useState("Verifying security clearance...");
 
@@ -19,7 +18,7 @@ export default function AuthCallbackPage() {
             const next = searchParams.get("next") || "https://www.entropyofficial.com";
 
             if (code) {
-                // Initialize a local client (Accesses LocalStorage correctly)
+                // Initialize local client
                 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
                 // 1. Exchange the code for a session
@@ -29,7 +28,7 @@ export default function AuthCallbackPage() {
                     setStatus("Access Granted. Redirecting to terminal...");
                     const { access_token, refresh_token } = data.session;
 
-                    // 2. Redirect to Framer with the tokens
+                    // 2. Redirect to Framer
                     const redirectUrl = new URL(next);
                     redirectUrl.searchParams.set("reset_password", "true");
                     redirectUrl.hash = `access_token=${access_token}&refresh_token=${refresh_token}`;
@@ -37,7 +36,6 @@ export default function AuthCallbackPage() {
                     window.location.href = redirectUrl.toString();
                 } else {
                     setStatus("Verification Failed: " + (error?.message || "Unknown Error"));
-                    // Fallback after 3 seconds
                     setTimeout(() => {
                         window.location.href = "/login?error=auth_failed";
                     }, 3000);
@@ -51,12 +49,21 @@ export default function AuthCallbackPage() {
     }, [searchParams]);
 
     return (
+        <div className="text-center">
+            <h1 className="text-2xl font-bold mb-4">SYSTEM HANDSHAKE</h1>
+            <p>{status}</p>
+            <div className="mt-4 w-12 h-12 border-4 border-[#00FF99] border-t-transparent rounded-full animate-spin mx-auto"></div>
+        </div>
+    );
+}
+
+export default function AuthCallbackPage() {
+    return (
         <div className="flex items-center justify-center h-screen bg-black text-[#00FF99] font-mono">
-            <div className="text-center">
-                <h1 className="text-2xl font-bold mb-4">SYSTEM HANDSHAKE</h1>
-                <p>{status}</p>
-                <div className="mt-4 w-12 h-12 border-4 border-[#00FF99] border-t-transparent rounded-full animate-spin mx-auto"></div>
-            </div>
+            {/* The Suspense boundary fixes the build error */}
+            <Suspense fallback={<div>Initializing Link...</div>}>
+                <CallbackContent />
+            </Suspense>
         </div>
     );
 }
