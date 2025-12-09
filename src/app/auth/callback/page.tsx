@@ -10,39 +10,63 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 function CallbackContent() {
     const searchParams = useSearchParams();
-    const [status, setStatus] = useState("Verifying security clearance...");
+    const [status, setStatus] = useState("Scanning frequency...");
 
     useEffect(() => {
         const handleCallback = async () => {
-            const code = searchParams.get("code");
             const next = searchParams.get("next") || "https://www.entropyofficial.com";
+            
+            // 1. Check for PKCE Code (Server-side flow)
+            const code = searchParams.get("code");
+            
+            // 2. Check for Hash Tokens (Client-side / Implicit flow)
+            // (Supabase sometimes puts tokens after the # symbol)
+            const hash = window.location.hash;
+            const hashParams = new URLSearchParams(hash.replace("#", "?"));
+            const accessToken = hashParams.get("access_token");
+            const refreshToken = hashParams.get("refresh_token");
+            const errorDescription = searchParams.get("error_description") || hashParams.get("error_description");
 
+            // --- SCENARIO A: ERROR ---
+            if (errorDescription) {
+                setStatus(`Connection Refused: ${errorDescription}`);
+                setTimeout(() => window.location.href = "/login?error=" + encodeURIComponent(errorDescription), 3000);
+                return;
+            }
+
+            // --- SCENARIO B: PKCE CODE (Exchange needed) ---
             if (code) {
-                // Initialize local client
+                setStatus("Exchanging secure codes...");
                 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-                // 1. Exchange the code for a session
                 const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
                 if (!error && data.session) {
-                    setStatus("Access Granted. Redirecting to terminal...");
-                    const { access_token, refresh_token } = data.session;
-
-                    // 2. Redirect to Framer
-                    const redirectUrl = new URL(next);
-                    redirectUrl.searchParams.set("reset_password", "true");
-                    redirectUrl.hash = `access_token=${access_token}&refresh_token=${refresh_token}`;
-                    
-                    window.location.href = redirectUrl.toString();
+                    redirectUser(next, data.session.access_token, data.session.refresh_token);
                 } else {
-                    setStatus("Verification Failed: " + (error?.message || "Unknown Error"));
-                    setTimeout(() => {
-                        window.location.href = "/login?error=auth_failed";
-                    }, 3000);
+                    setStatus("Exchange Failed: " + (error?.message || "Unknown Error"));
+                    setTimeout(() => window.location.href = "/login?error=exchange_failed", 3000);
                 }
-            } else {
-                setStatus("No code detected.");
+                return;
             }
+
+            // --- SCENARIO C: HASH TOKENS (Ready to go) ---
+            if (accessToken && refreshToken) {
+                setStatus("Tokens detected. Redirecting...");
+                redirectUser(next, accessToken, refreshToken);
+                return;
+            }
+
+            // --- SCENARIO D: NO DATA ---
+            console.log("Full URL:", window.location.href);
+            setStatus("No security credentials found in link.");
+        };
+
+        const redirectUser = (nextUrl: string, access: string, refresh: string) => {
+            const redirect = new URL(nextUrl);
+            redirect.searchParams.set("reset_password", "true");
+            // We pass tokens in the hash so they don't get logged in server history
+            redirect.hash = `access_token=${access}&refresh_token=${refresh}`;
+            window.location.href = redirect.toString();
         };
 
         handleCallback();
@@ -51,7 +75,7 @@ function CallbackContent() {
     return (
         <div className="text-center">
             <h1 className="text-2xl font-bold mb-4">SYSTEM HANDSHAKE</h1>
-            <p>{status}</p>
+            <p className="font-mono text-sm">{status}</p>
             <div className="mt-4 w-12 h-12 border-4 border-[#00FF99] border-t-transparent rounded-full animate-spin mx-auto"></div>
         </div>
     );
@@ -60,7 +84,6 @@ function CallbackContent() {
 export default function AuthCallbackPage() {
     return (
         <div className="flex items-center justify-center h-screen bg-black text-[#00FF99] font-mono">
-            {/* The Suspense boundary fixes the build error */}
             <Suspense fallback={<div>Initializing Link...</div>}>
                 <CallbackContent />
             </Suspense>
