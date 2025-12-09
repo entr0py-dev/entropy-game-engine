@@ -65,6 +65,20 @@ body {
     border-bottom: 2px solid white;
     box-shadow: none;
   }
+ 
+  /* 1. Lock the Body (Prevents Sidebar/Background from moving) */
+html, body {
+  overflow: hidden;
+  height: 100%;
+  overscroll-behavior: none; /* Stops the "rubber band" bounce */
+}
+
+/* 2. Isolate Window Scrolling */
+/* Apply this class to the scrollable content area inside your windows */
+.scrollable-content {
+  overflow-y: auto;
+  overscroll-behavior: contain; /* CRITICAL: Traps scroll inside this div */
+}
 
   /* Inset Panel (for lists/inventory slots) */
   .retro-inset {
