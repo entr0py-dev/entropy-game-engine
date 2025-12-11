@@ -26,6 +26,22 @@ export default function ItemCard({ item, isOwned, canAfford, onBuy, purchasing, 
   const isEntropic = item.rarity === 'entropic';
 
   const renderPreview = () => {
+    // --- NEW: NEURAL PATCH / FLOPPY DISK CHECK ---
+    // This catches the consumable item and forces it to render using the Badge engine
+    if (item.name === 'Neural Patch' || item.image_url === 'floppy_disk') {
+        return (
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ transform: 'scale(1.5)' }}>
+                    <Avatar 
+                        renderMode="badge" 
+                        equippedBadge="floppy_disk" 
+                        size={50} 
+                    />
+                </div>
+            </div>
+        );
+    }
+
     // UPDATED: Use Avatar for badges/modifiers in Shop too
     if (item.type === 'cosmetic' || item.type === 'badge' || item.type === 'modifier') {
       const part = (item.slot as 'head' | 'face' | 'body' | 'badge') || 'body';
