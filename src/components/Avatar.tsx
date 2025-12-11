@@ -51,7 +51,29 @@ export default function Avatar({
   const renderBadge = () => {
      if (renderMode !== 'badge') return null;
      
-     // 1. ENTROPIC INITIATE (Level 10) - Bronze Shield
+     // 1. NEURAL PATCH (Floppy Disk)
+     if (lowerBadge.includes('neural') || lowerBadge.includes('patch') || lowerBadge.includes('floppy')) {
+         return (
+             <g>
+                 {/* Blue Body */}
+                 <rect x="16" y="14" width="32" height="36" rx="2" fill="#000080" stroke="#000" strokeWidth="2" />
+                 {/* Metal Shutter */}
+                 <rect x="22" y="14" width="20" height="14" fill="#C0C0C0" stroke="#000" strokeWidth="1" />
+                 {/* Shutter Detail */}
+                 <rect x="26" y="14" width="6" height="10" fill="#222" opacity="0.8" />
+                 {/* Write Protect Tab */}
+                 <rect x="18" y="44" width="4" height="4" fill="#000" />
+                 {/* White Label */}
+                 <rect x="20" y="32" width="24" height="12" fill="#FFF" />
+                 {/* Text Lines */}
+                 <rect x="22" y="35" width="20" height="1" fill="#000" opacity="0.3" />
+                 <rect x="22" y="38" width="14" height="1" fill="#000" opacity="0.3" />
+                 <rect x="22" y="41" width="18" height="1" fill="#000" opacity="0.3" />
+             </g>
+         );
+     }
+
+     // 2. ENTROPIC INITIATE (Level 10) - Bronze Shield
      if (lowerBadge.includes('initiate')) {
          return (
              <g>
@@ -62,7 +84,7 @@ export default function Avatar({
          );
      }
 
-     // 2. ENTROPIC EXPLORER (Level 20) - Silver Compass
+     // 3. ENTROPIC EXPLORER (Level 20) - Silver Compass
      if (lowerBadge.includes('explorer')) {
          return (
              <g>
@@ -73,7 +95,7 @@ export default function Avatar({
          );
      }
 
-     // 3. 8BALLS ADVOCATE (Storyline) - Cracked 8-Ball
+     // 4. 8BALLS ADVOCATE (Storyline) - Cracked 8-Ball
      if (lowerBadge.includes('8ball') || lowerBadge.includes('advocate')) {
          return (
              <g>
@@ -86,7 +108,7 @@ export default function Avatar({
          );
      }
 
-     // 4. PONG! (Minigame) - Retro Paddle & Ball
+     // 5. PONG! (Minigame) - Retro Paddle & Ball
      if (lowerBadge.includes('pong')) {
          return (
              <g>
@@ -102,7 +124,7 @@ export default function Avatar({
          );
      }
 
-     // 5. DISTORTED AMULET (Find 8Ball) - Glitchy Purple Artifact
+     // 6. DISTORTED AMULET (Find 8Ball) - Glitchy Purple Artifact
      if (lowerBadge.includes('amulet')) {
          return (
              <g>
@@ -116,7 +138,7 @@ export default function Avatar({
          );
      }
 
-     // 6. DUPLICATION GLITCH (Multiplier) - Overlapping Coins
+     // 7. DUPLICATION GLITCH (Multiplier) - Overlapping Coins
      if (lowerBadge.includes('duplication')) {
          return (
              <g>
@@ -135,7 +157,7 @@ export default function Avatar({
          );
      }
 
-     // 7. 12 SIDED DIE (Multiplier) - Red D12
+     // 8. 12 SIDED DIE (Multiplier) - Red D12
      if (lowerBadge.includes('die') || lowerBadge.includes('12')) {
          return (
              <g>
