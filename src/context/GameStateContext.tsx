@@ -242,28 +242,39 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
 
 // --- LEVEL UP LISTENER ---
   useEffect(() => {
-    // SAFETY: Don't check quests until the game has fully loaded the user's data
+    // 1. Safety Checks
     if (loading || !profile || quests.length === 0) return;
 
     const checkLevelQuest = async (questTitle: string, levelReq: number) => {
+        // Only run if user meets level requirement
         if (profile.level >= levelReq) {
-            const quest = quests.find(q => q.title === questTitle);
             
-            // Strictly check if we already finished it
-            const isDone = userQuests.some(uq => uq.quest_id === quest?.id && uq.status === 'completed');
+            // FIX: Case-Insensitive Search
+            // This finds the quest even if DB is "Entropic Initiate" and code is "ENTROPIC INITIATE"
+            const quest = quests.find(q => q.title.toLowerCase() === questTitle.toLowerCase());
             
-            if (quest && !isDone) {
+            if (!quest) {
+                console.warn(`⚠️ Level System: Could not find quest titled "${questTitle}" in database.`);
+                return;
+            }
+
+            // Check if already done
+            const isDone = userQuests.some(uq => uq.quest_id === quest.id && uq.status === 'completed');
+            
+            if (!isDone) {
+                console.log(`🚀 Level Milestone Reached: ${levelReq} -> Completing "${quest.title}"...`);
                 await completeQuest(quest.id);
             }
         }
     };
 
-    checkLevelQuest('ENTROPIC NOVICE', 5);
-    checkLevelQuest('ENTROPIC INITIATE', 10);
-    checkLevelQuest('ENTROPIC ADEPT', 15);
-    checkLevelQuest('ENTROPIC EXPLORER', 20);
+    // Define Milestones
+    checkLevelQuest('ENTROPIC NOVICE', 5);    // Level 5
+    checkLevelQuest('ENTROPIC INITIATE', 10); // Level 10
+    checkLevelQuest('ENTROPIC ADEPT', 15);    // Level 15
+    checkLevelQuest('ENTROPIC EXPLORER', 20); // Level 20
     
-  }, [profile?.level, quests, userQuests, loading]); // Added loading dependency
+  }, [profile?.level, quests, userQuests, loading]);
   
   async function addEntrobucks(amount: number, source = 'system') {
     if (!session?.user || !profile) return;
