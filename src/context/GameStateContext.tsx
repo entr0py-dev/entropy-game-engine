@@ -378,25 +378,33 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         const expiry = new Date();
         expiry.setMinutes(expiry.getMinutes() + 15);
         
-        // 1. UPDATE LOCAL STATE IMMEDIATELY (The Timer)
-        const newProfile = { ...profile, duplication_expires_at: expiry.toISOString() };
-        setProfile(newProfile);
+        // 1. UPDATE TIMER (Immediate Visual)
+        setProfile(prev => prev ? { ...prev, duplication_expires_at: expiry.toISOString() } : null);
         
-        // 2. UPDATE INVENTORY VISUALLY
+        // 2. DECREMENT STACK (Immediate Visual)
         setInventory((prev) => {
+            // Create a deep copy to ensure React notices the change
             const copy = [...prev];
+            
+            // Find the stack by Definition ID (itemId)
             const index = copy.findIndex(i => i.item_id === itemId);
+            
             if (index !== -1) {
-                if ((copy[index].count || 1) > 1) {
-                    copy[index] = { ...copy[index], count: (copy[index].count || 1) - 1 };
+                const currentItem = copy[index];
+                const currentCount = currentItem.count || 1;
+
+                if (currentCount > 1) {
+                    // Reduce stack size by 1
+                    copy[index] = { ...currentItem, count: currentCount - 1 };
                 } else {
+                    // Last one? Remove it entirely
                     copy.splice(index, 1);
                 }
             }
             return copy;
         });
 
-        // 3. SHOW TOAST IMMEDIATELY
+        // 3. SHOW TOAST
         if (window.top) {
             window.top.postMessage({
                 type: 'SHOW_TOAST',
@@ -404,9 +412,9 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             }, '*');
         }
 
-        // 4. FIRE AND FORGET THE SERVER CALL
-        // IMPORTANT: We do NOT await this or reload state immediately. 
-        // We trust the optimistic update. The server will catch up.
+        // 4. SERVER SYNC (Background)
+        // We use the RPC to delete *one* instance from the DB.
+        // We DO NOT await loadGameState() here to prevent "snapping back" to old data.
         supabase.rpc('use_duplication_glitch', {
             p_user_id: session.user.id,
             p_item_id: itemId
@@ -415,7 +423,6 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         });
     }
   }
-
   async function equipItem(item: Item) {
     if (!session?.user || !profile) return;
     const updates: any = {};
