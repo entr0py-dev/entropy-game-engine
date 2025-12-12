@@ -482,7 +482,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
                     }, '*');
                 }
                 // Reload state to ensure sync
-                await refreshGameState();
+                await loadGameState();
             }
         }
     }
