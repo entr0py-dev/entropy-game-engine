@@ -22,7 +22,8 @@ export default function InventoryPage({ isOverlay, onClose }: { isOverlay?: bool
 
   const filteredItems = inventory.filter(inv => {
     if (activeTab === 'all' || activeTab === 'sets') return true;
-    const type = inv.item_details?.type || 'cosmetic';
+    // FIX: Case-insensitive check ensures Modifiers show up in the right tab
+    const type = inv.item_details?.type?.toLowerCase() || 'cosmetic';
     return type === activeTab;
   }).sort((a, b) => {
       const itemA = a.item_details;
@@ -73,14 +74,12 @@ export default function InventoryPage({ isOverlay, onClose }: { isOverlay?: bool
         <div style={{ flex: 1, display: 'flex', backgroundColor: '#c0c0c0', padding: '8px', gap: '8px', overflow: 'hidden' }}>
             <div style={{ width: '320px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '16px', paddingRight: '16px', borderRight: '1px solid #808080', boxShadow: '1px 0 0 white' }}>
                 <div className="retro-inset" style={{ backgroundColor: 'white', padding: '20px', display: 'flex', justifyContent: 'center', overflow: 'hidden' }}>
-                    
                     <Avatar 
                         gender={profile.gender} skinTone={profile.skin_tone} eyeColor={profile.eye_color} hairColor={profile.hair_color} hairStyle={profile.hair_style} 
                         equippedImage={profile.equipped_image} equippedHead={profile.equipped_head} equippedBody={profile.equipped_body} 
                         equippedBadge={profile.equipped_badge} 
                         size={160} 
                     />
-
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     <VisualSlot label="HEAD" profile={profile} part="head" />
@@ -121,6 +120,7 @@ export default function InventoryPage({ isOverlay, onClose }: { isOverlay?: bool
 
                 <div className="retro-inset" style={{ flex: 1, backgroundColor: 'white', padding: '16px', overflowY: 'auto' }}>
                     {activeTab === 'sets' ? (
+                        /* Sets Logic (Collapsed for brevity - stays same) */
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                             {cosmeticSets.map(set => {
                                 const isClaimed = claimedSets.includes(set.id);
@@ -168,7 +168,8 @@ export default function InventoryPage({ isOverlay, onClose }: { isOverlay?: bool
                                     const details = userItem.item_details;
                                     if (!details) return null;
                                     
-                                    // --- EQUIP STATE LOGIC ---
+                                    const isModifier = details.type?.toLowerCase() === 'modifier';
+
                                     let isEquipped = false;
                                     if (details.slot === 'head' && profile.equipped_head === details.name) isEquipped = true;
                                     if (details.slot === 'face' && profile.equipped_image === details.name) isEquipped = true;
@@ -176,33 +177,39 @@ export default function InventoryPage({ isOverlay, onClose }: { isOverlay?: bool
                                     if (details.slot === 'body' && (profile.equipped_body === details.name || profile.equipped_body === details.image_url)) isEquipped = true;
 
                                     return (
-                                        // --- UPDATED CARD LOGIC ---
                                         <div key={userItem.id} style={{ position: 'relative' }}>
                                             <InventoryCard
                                               userItem={userItem}
                                               isEquipped={isEquipped}
                                               onEquip={() => {
                                                   // CHECK: Is this a modifier?
-                                                  if (details.type === 'modifier') {
-                                                      // USE IT (Consume)
+                                                  if (isModifier) {
                                                       useModifier(details.id, details.name);
                                                   } else {
-                                                      // WEAR IT (Equip)
                                                       equipItem(details);
                                                   }
                                               }}
                                               onUnequip={() => unequipItem(details.slot || 'face')}
                                               profile={profile}
                                             />
+                                            
                                             {/* VISUAL HACK: Override the "Equip" button text for modifiers */}
-                                            {details.type === 'modifier' && (
-                                                <div style={{ 
+                                            {/* FIX: Lowercase check ensures this actually renders! */}
+                                            {isModifier && (
+                                                <div 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation(); // Stop click from hitting InventoryCard
+                                                        console.log("Use Button Clicked for:", details.name); // Debug log
+                                                        useModifier(details.id, details.name);
+                                                    }}
+                                                    style={{ 
                                                     position: 'absolute', bottom: '12px', left: '12px', right: '12px', 
-                                                    height: '30px', pointerEvents: 'none', // Allow clicks to pass through to the real button
+                                                    height: '30px', 
                                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                     color: 'white', fontWeight: 'bold', fontSize: '10px',
-                                                    backgroundColor: '#2563eb', // Matches the blue button color
-                                                    zIndex: 10
+                                                    backgroundColor: '#2563eb', 
+                                                    zIndex: 20, // High Z-Index to stay on top
+                                                    cursor: 'pointer'
                                                 }}>
                                                     USE ITEM
                                                 </div>
@@ -221,7 +228,6 @@ export default function InventoryPage({ isOverlay, onClose }: { isOverlay?: bool
   );
 }
 
-// Updated Visual Slot: Adjusted Transforms
 function VisualSlot({ label, profile, part }: { label: string, profile: any, part: 'head'|'face'|'body' }) {
     const isEmpty = part === 'head' ? !profile.equipped_head : part === 'face' ? !profile.equipped_image : !profile.equipped_body;
     let transformStyle = 'scale(1.2) translateY(5%)'; 
