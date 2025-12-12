@@ -1,11 +1,5 @@
 "use client";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/context/ToastContext";
@@ -28,7 +22,7 @@ export type Profile = {
   equipped_image?: string | null;
   xp: number;
   level: number;
-  duplication_expires_at?: string; 
+  duplication_expires_at?: string;
 };
 
 export type Quest = {
@@ -128,7 +122,10 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     if (!session?.user) return;
     supabase.from("transactions").insert({
         user_id: session.user.id,
-        type, amount, description: desc, item_name: itemName
+        type, 
+        amount,
+        description: desc,
+        item_name: itemName
     }).then(({ error }) => {
         if (error) console.error("Log Error:", error);
     });
@@ -181,11 +178,11 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
           eye_color: profileData.eye_color,
           hair_color: profileData.hair_color,
           hair_style: profileData.hair_style,
-          equipped_head: profileData.equipped_head,
-          equipped_face: profileData.equipped_image,
-          equipped_body: profileData.equipped_body,
-          equipped_badge: profileData.equipped_badge,
           equipped_image: profileData.equipped_image,
+          equipped_face: profileData.equipped_image,
+          equipped_badge: profileData.equipped_badge,
+          equipped_head: profileData.equipped_head,
+          equipped_body: profileData.equipped_body,
           xp: profileData.xp ?? 0,
           level: profileData.level ?? 1,
           duplication_expires_at: profileData.duplication_expires_at
@@ -196,28 +193,25 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
 
       const { data: rawInventory } = await supabase.from("user_items").select("*").eq("user_id", userId);
       
-      // --- FIXED INVENTORY STACKING LOGIC ---
       if (rawInventory && itemsData) {
         const groupedMap = new Map<string, UserItem>();
-        
         rawInventory.forEach((row) => {
             const details = itemsData.find(i => i.id === row.item_id);
             if (!details) return;
             
-            // KEY FIX: Modifiers stack by Definition ID. Others by Unique Row ID.
-            const key = details.type === 'modifier' ? details.id : row.id;
+            // --- STACKING FIX: Case-Insensitive Check ---
+            const isModifier = details.type?.toLowerCase() === 'modifier';
+            // Modifiers stack by Item ID (Definition). Others stack by Row ID (Unique).
+            const key = isModifier ? details.id : row.id;
 
             if (groupedMap.has(key)) {
-                // Stack found: Increase count
                 const existing = groupedMap.get(key)!;
                 existing.count = (existing.count || 1) + 1;
                 groupedMap.set(key, existing);
             } else {
-                // New stack: Start at 1
                 groupedMap.set(key, { ...row, item_details: details, count: 1 });
             }
         });
-        
         setInventory(Array.from(groupedMap.values()));
       } else {
         setInventory([]);
@@ -246,7 +240,6 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     }
   }, [profile, quests, userQuests, loading]);
 
-  // Level Logic...
   useEffect(() => {
     if (loading || !profile || quests.length === 0) return;
     const checkLevelQuest = async (questTitle: string, levelReq: number) => {
@@ -302,7 +295,11 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     if (!quest) return; 
     
     const { data, error } = await supabase.from("user_quests").upsert({ 
-        user_id: session.user.id, quest_id: questId, status: "completed", progress: 100, id: existingLocal?.id 
+        user_id: session.user.id, 
+        quest_id: questId, 
+        status: "completed", 
+        progress: 100, 
+        id: existingLocal?.id 
     }, { onConflict: "user_id,quest_id" }).select().single();
 
     if (!error && data) { 
@@ -317,10 +314,12 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
                  rewardItemName = itemData.name;
              }
         }
+
         if (quest.title === "Welcome to the ENTROVERSE") {
             const { data: blackTop } = await supabase.from("items").select("id").eq("name", "Default Black Top").maybeSingle();
             if (blackTop) await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: blackTop.id });
         }
+
         const { data: newInv } = await supabase.from("user_items").select("*, item_details:items(*)").eq("user_id", session.user.id);
         if (newInv) setInventory(newInv as any);
 
@@ -376,11 +375,8 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         const expiry = new Date();
         expiry.setMinutes(expiry.getMinutes() + 15);
         
-        // 1. UPDATE LOCAL STATE IMMEDIATELY (The Timer)
-        const newProfile = { ...profile, duplication_expires_at: expiry.toISOString() };
-        setProfile(newProfile);
-        
-        // 2. UPDATE INVENTORY VISUALLY
+        // 1. Optimistic Update (Show Timer & Remove 1 Item)
+        setProfile(prev => prev ? { ...prev, duplication_expires_at: expiry.toISOString() } : null);
         setInventory((prev) => {
             const copy = [...prev];
             const index = copy.findIndex(i => i.item_id === itemId);
@@ -394,7 +390,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             return copy;
         });
 
-        // 3. SHOW TOAST IMMEDIATELY
+        // 2. Show Toast Immediately
         if (window.top) {
             window.top.postMessage({
                 type: 'SHOW_TOAST',
@@ -402,17 +398,22 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             }, '*');
         }
 
-        // 4. FIRE AND FORGET THE SERVER CALL
-        // We do NOT await this or reload state immediately. 
-        // This prevents the "snap back" effect.
-        supabase.rpc('use_duplication_glitch', {
+        // 3. Server Call (Background)
+        const { error } = await supabase.rpc('use_duplication_glitch', {
             p_user_id: session.user.id,
             p_item_id: itemId
-        }).then(({ error }) => {
-            if (error) console.error("RPC Error:", error);
-            // We do NOT call loadGameState() here. 
-            // We trust the optimistic update until the user naturally refreshes.
         });
+
+        if (error) {
+            console.error("RPC Error:", error);
+            // If failed, reload state to "undo" optimistic update
+            await loadGameState(); 
+        } else {
+            console.log("✅ Glitch Active");
+            // DO NOT call loadGameState() immediately here. 
+            // Why? The DB might be slow. We trust our local Optimistic Update.
+            // The state will re-sync naturally on next page load/action.
+        }
     }
   }
 
