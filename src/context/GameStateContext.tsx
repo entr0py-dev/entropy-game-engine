@@ -1,11 +1,5 @@
 "use client";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/context/ToastContext";
@@ -192,8 +186,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
           equipped_body: profileData.equipped_body,
           xp: profileData.xp ?? 0,
           level: profileData.level ?? 1,
-          // --- THIS IS THE FIX FOR THE TIMER DISAPPEARING ---
-          duplication_expires_at: profileData.duplication_expires_at 
+          duplication_expires_at: profileData.duplication_expires_at
       } : null);
 
       const { data: userQuestData } = await supabase.from("user_quests").select("*").eq("user_id", userId);
@@ -330,12 +323,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         const { data: newInv } = await supabase.from("user_items").select("*, item_details:items(*)").eq("user_id", session.user.id);
         if (newInv) setInventory(newInv as any);
 
-        showToast(quest.title, 'quest', {
-            xp: quest.reward_xp,
-            entrobucks: quest.reward_entrobucks,
-            itemName: rewardItemName,
-            profile: profile 
-        });
+        showToast(quest.title, 'quest', { xp: quest.reward_xp, entrobucks: quest.reward_entrobucks, itemName: rewardItemName, profile: profile });
 
         if (quest.reward_entrobucks > 0) await addEntrobucks(quest.reward_entrobucks, `Quest Reward: ${quest.title}`);
         if (quest.reward_xp > 0) { 
@@ -382,15 +370,9 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     showToast(`Purchased ${item.name}!`, "success");
   }
 
-// --- DEBUGGING VERSION OF USE MODIFIER ---
+  // --- USE MODIFIER ---
   async function useModifier(itemId: string, itemName: string) {
-    // 1. Confirm the function actually triggers
-    // alert(`DEBUG: Function called for ${itemName}`); 
-
-    if (!session?.user || !profile) {
-        alert("DEBUG ERROR: No User Session found.");
-        return;
-    }
+    if (!session?.user || !profile) return;
 
     if (itemName === 'Duplication Glitch') {
         const expiry = new Date();
@@ -398,39 +380,40 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         
         // Optimistic UI
         setProfile(prev => prev ? { ...prev, duplication_expires_at: expiry.toISOString() } : null);
+        
+        // Remove 1 from inventory visually
         setInventory((prev) => {
             const copy = [...prev];
             const index = copy.findIndex(i => i.item_id === itemId);
             if (index !== -1) {
-                if ((copy[index].count || 1) > 1) copy[index] = { ...copy[index], count: (copy[index].count || 1) - 1 };
-                else copy.splice(index, 1);
+                if ((copy[index].count || 1) > 1) {
+                    copy[index] = { ...copy[index], count: (copy[index].count || 1) - 1 };
+                } else {
+                    copy.splice(index, 1);
+                }
             }
             return copy;
         });
 
-        // 2. Server Call
-        console.log("Calling RPC...");
+        // Server Call
         const { error } = await supabase.rpc('use_duplication_glitch', {
             p_user_id: session.user.id,
             p_item_id: itemId
         });
 
         if (error) {
-            // 3. Catch the specific DB error
-            alert(`DATABASE ERROR:\n${error.message}\n(Code: ${error.code})`);
-            console.error("RPC Failed:", error);
+            console.error("RPC Error:", error);
             await loadGameState(); // Revert
         } else {
-            // 4. Success state
             console.log("✅ Glitch Active");
-            // alert("DEBUG: Success! Timer started."); // Uncomment if needed
-            if (window.top) window.top.postMessage({ type: 'SHOW_TOAST', payload: { message: "SYSTEM HACK: 2X ACTIVE", toastType: "info" } }, '*');
-            
-            // Reload to ensure DB sync
+            if (window.top) {
+                window.top.postMessage({
+                    type: 'SHOW_TOAST',
+                    payload: { message: "SYSTEM HACK: 2X ACTIVE", toastType: "info" }
+                }, '*');
+            }
             await loadGameState();
         }
-    } else {
-        alert(`DEBUG: Name Mismatch. Code expects 'Duplication Glitch', got '${itemName}'`);
     }
   }
 
