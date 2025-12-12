@@ -420,7 +420,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     showToast(`Purchased ${item.name}!`, "success");
   }
 
-  // --- NEW: USE MODIFIER ---
+// --- NEW: USE MODIFIER (With Optimistic Updates) ---
   const useModifier = async (itemId: string, itemName: string) => {
     if (!session?.user || !profile) return;
 
@@ -428,8 +428,29 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     if (itemName === 'Duplication Glitch') {
         const expiry = new Date();
         expiry.setMinutes(expiry.getMinutes() + 15); // +15 mins
+        const expiryString = expiry.toISOString();
 
-        // Find a specific instance to consume
+        // --- A. OPTIMISTIC UPDATE (Instant Visuals) ---
+        // 1. Update Profile State immediately (Show Timer)
+        setProfile((prev) => prev ? { ...prev, duplication_expires_at: expiryString } : null);
+        
+        // 2. Update Inventory State immediately (Remove Item)
+        setInventory((prev) => {
+            const copy = [...prev];
+            const index = copy.findIndex(i => i.item_id === itemId);
+            if (index !== -1) {
+                // If stack > 1, decrease count. If 1, remove row.
+                if ((copy[index].count || 1) > 1) {
+                    copy[index] = { ...copy[index], count: (copy[index].count || 1) - 1 };
+                } else {
+                    copy.splice(index, 1);
+                }
+            }
+            return copy;
+        });
+
+        // --- B. DATABASE OPERATIONS ---
+        // 1. Find a specific instance to delete in DB
         const { data: userItem } = await supabase
             .from("user_items")
             .select("id")
@@ -439,17 +460,18 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             .maybeSingle();
 
         if (userItem) {
-            // Delete one item
-            await supabase.from("user_items").delete().eq("id", userItem.id);
+            // Delete from DB
+            const { error: delError } = await supabase.from("user_items").delete().eq("id", userItem.id);
+            if (delError) console.error("Item Delete Failed (Check RLS):", delError);
             
-            // Set Timer
-            const { error } = await supabase
+            // Set Timer in DB
+            const { error: profileError } = await supabase
                 .from("profiles")
-                .update({ duplication_expires_at: expiry.toISOString() })
+                .update({ duplication_expires_at: expiryString })
                 .eq("id", session.user.id);
 
-            if (!error) {
-                await loadGameState();
+            if (!profileError && !delError) {
+                // Trigger Visual Toast
                 if (window.top) {
                     window.top.postMessage({
                         type: 'SHOW_TOAST',
@@ -459,6 +481,8 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
                         }
                     }, '*');
                 }
+                // Reload state to ensure sync
+                await refreshGameState();
             }
         }
     }
