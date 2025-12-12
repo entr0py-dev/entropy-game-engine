@@ -419,27 +419,18 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     await loadGameState();
     showToast(`Purchased ${item.name}!`, "success");
   }
-
-// --- NEW: USE MODIFIER ---
+// --- NEW: USE MODIFIER (Server-Side Logic) ---
   const useModifier = async (itemId: string, itemName: string) => {
-    console.log(`[DEBUG] Attempting to use modifier: ${itemName} (${itemId})`);
-    
-    if (!session?.user || !profile) {
-        console.error("[DEBUG] No session or profile found.");
-        return;
-    }
+    if (!session?.user || !profile) return;
 
-    // 1. DUPLICATION GLITCH
     if (itemName === 'Duplication Glitch') {
+        // 1. Optimistic Update (Instant Visuals)
         const expiry = new Date();
-        expiry.setMinutes(expiry.getMinutes() + 15); // +15 mins
-        const expiryString = expiry.toISOString();
-
-        console.log(`[DEBUG] Setting expiry to: ${expiryString}`);
-
-        // --- OPTIMISTIC UPDATE (Instant Visuals) ---
-        setProfile((prev) => prev ? { ...prev, duplication_expires_at: expiryString } : null);
+        expiry.setMinutes(expiry.getMinutes() + 15);
         
+        setProfile({ ...profile, duplication_expires_at: expiry.toISOString() });
+        
+        // Remove 1 from local inventory immediately
         setInventory((prev) => {
             const copy = [...prev];
             const index = copy.findIndex(i => i.item_id === itemId);
@@ -453,46 +444,18 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             return copy;
         });
 
-        // --- DATABASE OPERATIONS ---
-        // 1. Find specific row to delete
-        const { data: userItem, error: findError } = await supabase
-            .from("user_items")
-            .select("id")
-            .eq("user_id", session.user.id)
-            .eq("item_id", itemId)
-            .limit(1)
-            .maybeSingle();
+        // 2. Call the "Silver Bullet" Server Function
+        const { error } = await supabase.rpc('use_duplication_glitch', {
+            p_user_id: session.user.id,
+            p_item_id: itemId
+        });
 
-        if (findError) console.error("[DEBUG] Error finding item row:", findError);
-        if (!userItem) {
-            console.error("[DEBUG] Could not find item row in user_items table.");
-            return;
-        }
-
-        console.log(`[DEBUG] Found row ID to delete: ${userItem.id}`);
-
-        // 2. Delete Item
-        const { error: delError } = await supabase.from("user_items").delete().eq("id", userItem.id);
-        if (delError) {
-            console.error("[DEBUG] DELETE FAILED:", delError.message);
-            alert("Database Error: Could not delete item. Check RLS policies.");
+        if (error) {
+            console.error("Glitch Activation Failed:", error);
+            // Revert state if it failed
+            await loadGameState();
         } else {
-            console.log("[DEBUG] Item deleted successfully.");
-        }
-        
-        // 3. Update Profile Timer
-        const { error: profileError } = await supabase
-            .from("profiles")
-            .update({ duplication_expires_at: expiryString })
-            .eq("id", session.user.id);
-
-        if (profileError) {
-            console.error("[DEBUG] PROFILE UPDATE FAILED:", profileError.message);
-        } else {
-            console.log("[DEBUG] Timer saved to profile.");
-        }
-
-        if (!profileError && !delError) {
+            // Success Message
             if (window.top) {
                 window.top.postMessage({
                     type: 'SHOW_TOAST',
@@ -502,15 +465,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
                     }
                 }, '*');
             }
-            
-            // Sync with DB (Wait a moment to ensure DB processes the write)
-            setTimeout(() => {
-                console.log("[DEBUG] Refreshing Game State...");
-                loadGameState();
-            }, 500);
         }
-    } else {
-        console.warn(`[DEBUG] Item name '${itemName}' did not match 'Duplication Glitch'`);
     }
   };
 
