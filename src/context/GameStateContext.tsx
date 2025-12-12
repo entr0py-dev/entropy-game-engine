@@ -109,6 +109,8 @@ type GameState = {
 
 const GameStateContext = createContext<GameState | undefined>(undefined);
 
+
+
 export function GameStateProvider({ children }: { children: React.ReactNode }) {
   const { showToast } = useToast();
   const [session, setSession] = useState<Session | null>(null);
@@ -231,7 +233,12 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
+useEffect(() => {
+      console.log("🔥 GAME ENGINE v2.0 LOADED - " + new Date().toLocaleTimeString());
+      console.log("Inventory:", inventory);
+  }, [inventory]);
+
+useEffect(() => {
     void loadGameState();
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, newSession) => { setSession(newSession); void loadGameState(); });
     return () => { authListener.subscription.unsubscribe(); };
