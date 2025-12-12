@@ -11,7 +11,7 @@ export default function ModifierTimer({ expiry }: { expiry: string }) {
             const diff = end - now;
 
             if (diff <= 0) {
-                setTimeLeft(""); // Expired
+                setTimeLeft(""); 
                 return;
             }
 
@@ -20,7 +20,6 @@ export default function ModifierTimer({ expiry }: { expiry: string }) {
             setTimeLeft(`${minutes}:${seconds < 10 ? '0' : ''}${seconds}`);
         };
 
-        // Update every second
         calculateTime();
         const interval = setInterval(calculateTime, 1000);
         return () => clearInterval(interval);
@@ -36,18 +35,13 @@ export default function ModifierTimer({ expiry }: { expiry: string }) {
             display: 'flex', alignItems: 'center', gap: '8px',
             boxShadow: '0 0 5px rgba(0, 255, 153, 0.3)'
         }}>
-            {/* Glitch Icon */}
             <div style={{ fontSize: '14px' }}>👾</div>
-            
             <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '8px', color: '#888' }}>
                     DUPLICATION GLITCH
                 </div>
-                <div style={{ fontSize: '12px', fontWeight: 'bold' }}>
-                    {timeLeft}
-                </div>
+                <div style={{ fontSize: '12px', fontWeight: 'bold' }}>{timeLeft}</div>
             </div>
-            
             <div style={{ color: '#fbbf24', fontWeight: 'bold' }}>2x</div>
         </div>
     );
