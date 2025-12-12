@@ -9,7 +9,7 @@ type Tab = 'cosmetic' | 'badge' | 'modifier' | 'sets' | 'all';
 type Sort = 'rarity' | 'type' | 'set';
 
 export default function InventoryPage({ isOverlay, onClose }: { isOverlay?: boolean, onClose?: () => void }) {
-  const { inventory, equipItem, unequipItem, profile, cosmeticSets, claimedSets, claimSetBonus, shopItems } = useGameState();
+  const { inventory, equipItem, unequipItem, useModifier, profile, cosmeticSets, claimedSets, claimSetBonus, shopItems } = useGameState();
   const [activeTab, setActiveTab] = useState<Tab>('cosmetic');
   const [sortMethod, setSortMethod] = useState<Sort>('rarity');
   const [expandedSetId, setExpandedSetId] = useState<string | null>(null);
@@ -74,7 +74,6 @@ export default function InventoryPage({ isOverlay, onClose }: { isOverlay?: bool
             <div style={{ width: '320px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '16px', paddingRight: '16px', borderRight: '1px solid #808080', boxShadow: '1px 0 0 white' }}>
                 <div className="retro-inset" style={{ backgroundColor: 'white', padding: '20px', display: 'flex', justifyContent: 'center', overflow: 'hidden' }}>
                     
-                    {/* FIXED: PASS EQUIPPED BADGE PROP TO MAIN AVATAR */}
                     <Avatar 
                         gender={profile.gender} skinTone={profile.skin_tone} eyeColor={profile.eye_color} hairColor={profile.hair_color} hairStyle={profile.hair_style} 
                         equippedImage={profile.equipped_image} equippedHead={profile.equipped_head} equippedBody={profile.equipped_body} 
@@ -131,33 +130,33 @@ export default function InventoryPage({ isOverlay, onClose }: { isOverlay?: bool
                                 const isComplete = ownedCount === totalCount;
                                 return (
                                  <div key={set.id} className="retro-window" style={{ padding: 0 }}>
-                                        <div onClick={() => setExpandedSetId(isExpanded ? null : set.id)} style={{ padding: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: isClaimed ? '#dcfce7' : '#c0c0c0', borderBottom: isExpanded ? '2px solid #808080' : 'none' }}>
-                                            <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{set.is_hidden && !isComplete ? "??? (HIDDEN SET)" : set.name} {isClaimed && " (COMPLETED)"}</div>
-                                            <div style={{ fontSize: '12px' }}>{isClaimed ? "claimed" : `${ownedCount}/${totalCount}`} {isExpanded ? '▲' : '▼'}</div>
-                                        </div>
-                                        {isExpanded && (
-                                          <div style={{ padding: '10px', backgroundColor: '#f3f4f6' }}>
-                                                <p style={{ fontSize: '12px', marginBottom: '10px', fontStyle: 'italic' }}>Reward: <b>{set.xp_reward} XP</b></p>
-                                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '10px', marginBottom: '10px' }}>
-                                                   {set.items.map(reqId => {
-                                                        const isOwned = inventory.some(i => i.item_id === reqId);
-                                                        const itemDetails = shopItems.find(i => i.id === reqId) || inventory.find(i => i.item_id === reqId)?.item_details;
-                                                        const showName = !set.is_hidden || isOwned;
-                                                        return (
-                                                            <div key={reqId} style={{ border: '1px solid #ccc', padding: '8px', backgroundColor: isOwned ? 'white' : '#e5e5e5', opacity: isOwned ? 1 : 0.5, fontSize: '10px', textAlign: 'center' }}>
-                                                                <div style={{ fontSize: '20px', marginBottom: '4px' }}>{showName && itemDetails ? itemDetails.image_url : "🔒"}</div>
-                                                                <div>{showName && itemDetails ? itemDetails.name : "???"}</div>
-                                                            </div>
-                                                      );
-                                                    })}
-                                                </div>
-                                                {!isClaimed && (
-                                                   <button onClick={(e) => { e.stopPropagation(); claimSetBonus(set.id); }} disabled={!isComplete} className="retro-btn" style={{ width: '100%', backgroundColor: isComplete ? '#2563eb' : '#ccc', color: isComplete ? 'white' : '#666', cursor: isComplete ? 'pointer' : 'not-allowed' }}>
-                                                        {isComplete ? 'CLAIM BONUS' : 'COLLECT ALL TO UNLOCK'}
-                                                    </button>
-                                                )}
+                                            <div onClick={() => setExpandedSetId(isExpanded ? null : set.id)} style={{ padding: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: isClaimed ? '#dcfce7' : '#c0c0c0', borderBottom: isExpanded ? '2px solid #808080' : 'none' }}>
+                                                <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{set.is_hidden && !isComplete ? "??? (HIDDEN SET)" : set.name} {isClaimed && " (COMPLETED)"}</div>
+                                                <div style={{ fontSize: '12px' }}>{isClaimed ? "claimed" : `${ownedCount}/${totalCount}`} {isExpanded ? '▲' : '▼'}</div>
                                             </div>
-                                         )}
+                                            {isExpanded && (
+                                              <div style={{ padding: '10px', backgroundColor: '#f3f4f6' }}>
+                                                        <p style={{ fontSize: '12px', marginBottom: '10px', fontStyle: 'italic' }}>Reward: <b>{set.xp_reward} XP</b></p>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '10px', marginBottom: '10px' }}>
+                                                           {set.items.map(reqId => {
+                                                                const isOwned = inventory.some(i => i.item_id === reqId);
+                                                                const itemDetails = shopItems.find(i => i.id === reqId) || inventory.find(i => i.item_id === reqId)?.item_details;
+                                                                const showName = !set.is_hidden || isOwned;
+                                                                return (
+                                                                    <div key={reqId} style={{ border: '1px solid #ccc', padding: '8px', backgroundColor: isOwned ? 'white' : '#e5e5e5', opacity: isOwned ? 1 : 0.5, fontSize: '10px', textAlign: 'center' }}>
+                                                                        <div style={{ fontSize: '20px', marginBottom: '4px' }}>{showName && itemDetails ? itemDetails.image_url : "🔒"}</div>
+                                                                        <div>{showName && itemDetails ? itemDetails.name : "???"}</div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                        {!isClaimed && (
+                                                           <button onClick={(e) => { e.stopPropagation(); claimSetBonus(set.id); }} disabled={!isComplete} className="retro-btn" style={{ width: '100%', backgroundColor: isComplete ? '#2563eb' : '#ccc', color: isComplete ? 'white' : '#666', cursor: isComplete ? 'pointer' : 'not-allowed' }}>
+                                                                {isComplete ? 'CLAIM BONUS' : 'COLLECT ALL TO UNLOCK'}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                               )}
                                     </div>
                                 );
                             })}
@@ -168,6 +167,8 @@ export default function InventoryPage({ isOverlay, onClose }: { isOverlay?: bool
                                 {filteredItems.map((userItem) => {
                                     const details = userItem.item_details;
                                     if (!details) return null;
+                                    
+                                    // --- EQUIP STATE LOGIC ---
                                     let isEquipped = false;
                                     if (details.slot === 'head' && profile.equipped_head === details.name) isEquipped = true;
                                     if (details.slot === 'face' && profile.equipped_image === details.name) isEquipped = true;
@@ -175,14 +176,38 @@ export default function InventoryPage({ isOverlay, onClose }: { isOverlay?: bool
                                     if (details.slot === 'body' && (profile.equipped_body === details.name || profile.equipped_body === details.image_url)) isEquipped = true;
 
                                     return (
-                                        <InventoryCard
-                                          key={userItem.id}
-                                          userItem={userItem}
-                                          isEquipped={isEquipped}
-                                          onEquip={() => equipItem(details)}
-                                          onUnequip={() => unequipItem(details.slot || 'face')}
-                                          profile={profile}
-                                        />
+                                        // --- UPDATED CARD LOGIC ---
+                                        <div key={userItem.id} style={{ position: 'relative' }}>
+                                            <InventoryCard
+                                              userItem={userItem}
+                                              isEquipped={isEquipped}
+                                              onEquip={() => {
+                                                  // CHECK: Is this a modifier?
+                                                  if (details.type === 'modifier') {
+                                                      // USE IT (Consume)
+                                                      useModifier(details.id, details.name);
+                                                  } else {
+                                                      // WEAR IT (Equip)
+                                                      equipItem(details);
+                                                  }
+                                              }}
+                                              onUnequip={() => unequipItem(details.slot || 'face')}
+                                              profile={profile}
+                                            />
+                                            {/* VISUAL HACK: Override the "Equip" button text for modifiers */}
+                                            {details.type === 'modifier' && (
+                                                <div style={{ 
+                                                    position: 'absolute', bottom: '12px', left: '12px', right: '12px', 
+                                                    height: '30px', pointerEvents: 'none', // Allow clicks to pass through to the real button
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    color: 'white', fontWeight: 'bold', fontSize: '10px',
+                                                    backgroundColor: '#2563eb', // Matches the blue button color
+                                                    zIndex: 10
+                                                }}>
+                                                    USE ITEM
+                                                </div>
+                                            )}
+                                        </div>
                                     );
                                 })}
                             </div>
