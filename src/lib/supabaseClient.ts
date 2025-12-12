@@ -1,16 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
-// 1. Load variables (with fallbacks to prevent crashes)
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+// DIRECT PASTE - BYPASSING ENVIRONMENT VARIABLES FOR TESTING
+// Replace these strings with the actual values from your Supabase Dashboard
+const supabaseUrl = "https://uyufenhltvwxypldaemj.supabase.co"; 
+const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5dWZlbmhsdHZ3eHlwbGRhZW1qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5OTYwNjUsImV4cCI6MjA3ODU3MjA2NX0.X4kJCvS6bK207thqCBpgcRTrV_n0N7k0kbAm9E_xdsc"; // <--- PASTE YOUR FULL ANON KEY HERE
 
-// 2. Debugging (Check your browser console to see if these load!)
-if (typeof window !== 'undefined') {
-    if (!supabaseUrl) console.error("❌ Supabase URL missing! Check NEXT_PUBLIC_SUPABASE_URL");
-    if (!supabaseAnonKey) console.error("❌ Supabase Key missing! Check NEXT_PUBLIC_SUPABASE_ANON_KEY");
-}
-
-// 3. Create Client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
         persistSession: true,
