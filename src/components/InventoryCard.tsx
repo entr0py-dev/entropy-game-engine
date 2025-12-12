@@ -80,20 +80,25 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
     return <span style={{ fontSize: '28px' }}>{item.image_url}</span>;
   };
 
+  
   // Tighter Button Style
   const buttonStyle: React.CSSProperties = {
       backgroundColor: isModifier ? '#2563eb' : isEquipped ? '#fee2e2' : '#c0c0c0', 
       color: isModifier ? 'white' : isEquipped ? '#991b1b' : 'black',
       border: '1px solid #808080',
       boxShadow: '1px 1px 0 black',
-      fontSize: '9px', // Smaller font
+      fontSize: '8px', // Reduced to 8px
       fontWeight: 'bold', 
-      padding: '4px 2px', // Tighter padding
+      padding: '4px 0', // Zero horizontal padding
       cursor: 'pointer', 
       marginTop: 'auto',
-      width: '100%', // Force fit
-      whiteSpace: 'nowrap', // Prevent text wrap
-      boxSizing: 'border-box'
+      width: '100%', 
+      whiteSpace: 'nowrap',
+      overflow: 'hidden', 
+      textOverflow: 'ellipsis',
+      display: 'flex', 
+      justifyContent: 'center', 
+      alignItems: 'center'
   };
 
   return (
