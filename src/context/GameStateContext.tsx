@@ -222,8 +222,6 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         });
         
         setInventory(Array.from(groupedMap.values()));
-      }
-        setInventory(Array.from(groupedMap.values()));
       } else {
         setInventory([]);
       }
