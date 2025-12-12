@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useGameState } from '@/context/GameStateContext';
 import { supabase } from '@/lib/supabaseClient';
 import Avatar from './Avatar';
+import ModifierTimer from './ModifierTimer'; // <--- NEW IMPORT
 
 const FRAMER_URL = "https://entropyofficial.com";
 
@@ -195,6 +196,12 @@ export default function Sidebar({ startOpen = false, onCloseAll }: SidebarProps)
               <div style={{ width: '100%', textAlign: 'right', fontSize: '10px', marginTop: '4px' }}>
                 {profile.xp} / {profile.level * 500} XP
               </div>
+
+              {/* --- NEW: ACTIVE MODIFIERS --- */}
+              {profile.duplication_expires_at && new Date(profile.duplication_expires_at) > new Date() && (
+                  <ModifierTimer expiry={profile.duplication_expires_at} />
+              )}
+
             </div>
           ) : (
             <div style={{ padding: '16px', textAlign: 'center' }}>Loading...</div>
