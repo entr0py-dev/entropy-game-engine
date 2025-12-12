@@ -190,7 +190,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
 
       const { data: rawInventory } = await supabase.from("user_items").select("*").eq("user_id", userId);
       
-   // --- FIXED STACKING LOGIC ---
+    // --- FIXED STACKING LOGIC (Force Duplication Glitch to Group) ---
       if (rawInventory && itemsData) {
         const groupedMap = new Map<string, UserItem>();
         
@@ -198,18 +198,19 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             const details = itemsData.find(i => i.id === row.item_id);
             if (!details) return;
             
-            // 1. Force Lowercase Check
-            const type = details.type?.toLowerCase() || 'cosmetic';
-            const isModifier = type === 'modifier';
+            // 1. ROBUST CHECK: Is this a modifier?
+            // We force it to be true if the name matches, ignoring DB type errors.
+            const isDupeGlitch = details.name === 'Duplication Glitch';
+            const isModifier = details.type?.toLowerCase().trim() === 'modifier' || isDupeGlitch;
 
-            // 2. CRITICAL: Modifiers group by their Definition ID (details.id)
-            //    Normal items group by their Unique Row ID (row.id)
+            // 2. GROUPING KEY
+            // Modifiers group by their Definition ID (details.id)
+            // Normal items group by their Unique Row ID (row.id)
             const key = isModifier ? details.id : row.id;
 
             if (groupedMap.has(key)) {
-                // Found existing stack -> Increment count
+                // Stack found -> Increment count
                 const existing = groupedMap.get(key)!;
-                // Ensure count is treated as a number
                 const currentCount = existing.count || 1;
                 existing.count = currentCount + 1;
                 groupedMap.set(key, existing);
