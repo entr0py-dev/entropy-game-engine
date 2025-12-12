@@ -27,7 +27,7 @@ export type Profile = {
   equipped_image?: string | null;
   xp: number;
   level: number;
-  duplication_expires_at?: string; // Timer field
+  duplication_expires_at?: string;
 };
 
 export type Quest = {
@@ -108,8 +108,6 @@ type GameState = {
 };
 
 const GameStateContext = createContext<GameState | undefined>(undefined);
-
-
 
 export function GameStateProvider({ children }: { children: React.ReactNode }) {
   const { showToast } = useToast();
@@ -192,7 +190,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
           equipped_body: profileData.equipped_body,
           xp: profileData.xp ?? 0,
           level: profileData.level ?? 1,
-          duplication_expires_at: profileData.duplication_expires_at // Load timer from DB
+          duplication_expires_at: profileData.duplication_expires_at
       } : null);
 
       const { data: userQuestData } = await supabase.from("user_quests").select("*").eq("user_id", userId);
@@ -200,27 +198,21 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
 
       const { data: rawInventory } = await supabase.from("user_items").select("*").eq("user_id", userId);
       
-   if (rawInventory && itemsData) {
+      if (rawInventory && itemsData) {
         const groupedMap = new Map<string, UserItem>();
-        
         rawInventory.forEach((row) => {
             const details = itemsData.find(i => i.id === row.item_id);
             if (!details) return;
-
-            // Use Item ID as key for modifiers to group them
-            // For unique items (like specific NFT instances), use Row ID
+            // Modifiers stack by Item ID, Equipment stacks by Row ID
             const key = details.type === 'modifier' ? details.id : row.id;
 
             if (groupedMap.has(key)) {
                 const existing = groupedMap.get(key)!;
-                // Increment count
                 existing.count = (existing.count || 1) + 1;
             } else {
-                // Init new entry
                 groupedMap.set(key, { ...row, item_details: details, count: 1 });
             }
         });
-        
         setInventory(Array.from(groupedMap.values()));
       } else {
         setInventory([]);
@@ -231,18 +223,12 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
-useEffect(() => {
-      console.log("🔥 GAME ENGINE v2.0 LOADED - " + new Date().toLocaleTimeString());
-      console.log("Inventory:", inventory);
-  }, [inventory]);
-
-useEffect(() => {
+  useEffect(() => {
     void loadGameState();
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, newSession) => { setSession(newSession); void loadGameState(); });
     return () => { authListener.subscription.unsubscribe(); };
   }, [loadGameState]);
 
-  // --- AUTO-COMPLETE "WELCOME" QUEST ---
   useEffect(() => {
     if (!profile || quests.length === 0 || loading) return;
     const welcomeTitle = "Welcome to the ENTROVERSE";
@@ -255,7 +241,6 @@ useEffect(() => {
     }
   }, [profile, quests, userQuests, loading]);
 
-  // --- LEVEL UP LISTENER ---
   useEffect(() => {
     if (loading || !profile || quests.length === 0) return;
     const checkLevelQuest = async (questTitle: string, levelReq: number) => {
@@ -322,7 +307,6 @@ useEffect(() => {
 
     if (!error && data) { 
         setUserQuests((prev) => prev.some((q) => q.quest_id === questId) ? prev.map((q) => (q.quest_id === questId ? { ...q, status: "completed", progress: 100 } : q)) : [...prev, data as UserQuest] );
-        
         logTransaction('QUEST_COMPLETE', 0, `Completed Quest: ${quest.title}`);
 
         let rewardItemName = undefined;
@@ -397,9 +381,9 @@ useEffect(() => {
     showToast(`Purchased ${item.name}!`, "success");
   }
 
-  // --- NEW: USE MODIFIER (RPC Version) ---
-const useModifier = async (itemId: string, itemName: string) => {
-    console.log("👾 ACTIVATING:", itemName);
+  // --- USE MODIFIER ---
+  async function useModifier(itemId: string, itemName: string) {
+    if (!session?.user || !profile) return;
 
     if (itemName === 'Duplication Glitch') {
         // 1. Optimistic Update (Instant Visuals)
@@ -424,7 +408,7 @@ const useModifier = async (itemId: string, itemName: string) => {
 
         // 2. Server Action
         const { error } = await supabase.rpc('use_duplication_glitch', {
-            p_user_id: session?.user.id,
+            p_user_id: session.user.id,
             p_item_id: itemId
         });
 
@@ -441,7 +425,7 @@ const useModifier = async (itemId: string, itemName: string) => {
             }
         }
     }
-  };
+  }
 
   async function equipItem(item: Item) {
     if (!session?.user || !profile) return;
