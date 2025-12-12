@@ -382,9 +382,15 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     showToast(`Purchased ${item.name}!`, "success");
   }
 
-  // --- NEW: USE MODIFIER (RPC Version) ---
-  const useModifier = async (itemId: string, itemName: string) => {
-    if (!session?.user || !profile) return;
+// --- DEBUGGING VERSION OF USE MODIFIER ---
+  async function useModifier(itemId: string, itemName: string) {
+    // 1. Confirm the function actually triggers
+    // alert(`DEBUG: Function called for ${itemName}`); 
+
+    if (!session?.user || !profile) {
+        alert("DEBUG ERROR: No User Session found.");
+        return;
+    }
 
     if (itemName === 'Duplication Glitch') {
         const expiry = new Date();
@@ -392,47 +398,41 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         
         // Optimistic UI
         setProfile(prev => prev ? { ...prev, duplication_expires_at: expiry.toISOString() } : null);
-        
-        // Remove 1 from inventory visually
         setInventory((prev) => {
             const copy = [...prev];
             const index = copy.findIndex(i => i.item_id === itemId);
             if (index !== -1) {
-                if ((copy[index].count || 1) > 1) {
-                    copy[index] = { ...copy[index], count: (copy[index].count || 1) - 1 };
-                } else {
-                    copy.splice(index, 1);
-                }
+                if ((copy[index].count || 1) > 1) copy[index] = { ...copy[index], count: (copy[index].count || 1) - 1 };
+                else copy.splice(index, 1);
             }
             return copy;
         });
 
-        // Server Call
+        // 2. Server Call
+        console.log("Calling RPC...");
         const { error } = await supabase.rpc('use_duplication_glitch', {
             p_user_id: session.user.id,
             p_item_id: itemId
         });
 
         if (error) {
-            console.error("RPC Error:", error);
-            // Revert state if failed
-            await loadGameState();
+            // 3. Catch the specific DB error
+            alert(`DATABASE ERROR:\n${error.message}\n(Code: ${error.code})`);
+            console.error("RPC Failed:", error);
+            await loadGameState(); // Revert
         } else {
-            // Success Message
-            if (window.top) {
-                window.top.postMessage({
-                    type: 'SHOW_TOAST',
-                    payload: {
-                        message: "SYSTEM HACK: 2X MULTIPLIER ACTIVE (15m)",
-                        toastType: "info"
-                    }
-                }, '*');
-            }
-            // Sync with DB
+            // 4. Success state
+            console.log("✅ Glitch Active");
+            // alert("DEBUG: Success! Timer started."); // Uncomment if needed
+            if (window.top) window.top.postMessage({ type: 'SHOW_TOAST', payload: { message: "SYSTEM HACK: 2X ACTIVE", toastType: "info" } }, '*');
+            
+            // Reload to ensure DB sync
             await loadGameState();
         }
+    } else {
+        alert(`DEBUG: Name Mismatch. Code expects 'Duplication Glitch', got '${itemName}'`);
     }
-  };
+  }
 
   async function equipItem(item: Item) {
     if (!session?.user || !profile) return;
