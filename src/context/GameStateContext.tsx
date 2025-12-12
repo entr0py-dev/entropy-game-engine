@@ -190,27 +190,38 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
 
       const { data: rawInventory } = await supabase.from("user_items").select("*").eq("user_id", userId);
       
-      // --- FIXED INVENTORY STACKING LOGIC ---
+   // --- FIXED STACKING LOGIC ---
       if (rawInventory && itemsData) {
         const groupedMap = new Map<string, UserItem>();
+        
         rawInventory.forEach((row) => {
             const details = itemsData.find(i => i.id === row.item_id);
             if (!details) return;
             
-            // KEY FIX: Case-insensitive Check + Group by Definition ID for modifiers
-            const isModifier = details.type?.toLowerCase() === 'modifier';
+            // 1. Force Lowercase Check
+            const type = details.type?.toLowerCase() || 'cosmetic';
+            const isModifier = type === 'modifier';
+
+            // 2. CRITICAL: Modifiers group by their Definition ID (details.id)
+            //    Normal items group by their Unique Row ID (row.id)
             const key = isModifier ? details.id : row.id;
 
             if (groupedMap.has(key)) {
+                // Found existing stack -> Increment count
                 const existing = groupedMap.get(key)!;
-                existing.count = (existing.count || 1) + 1;
+                // Ensure count is treated as a number
+                const currentCount = existing.count || 1;
+                existing.count = currentCount + 1;
                 groupedMap.set(key, existing);
             } else {
+                // New Item -> Start stack at 1
                 groupedMap.set(key, { ...row, item_details: details, count: 1 });
             }
         });
+        
         setInventory(Array.from(groupedMap.values()));
-      } else {
+      }
+      else {
         setInventory([]);
       }
     } else {
