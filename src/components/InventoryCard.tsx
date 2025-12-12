@@ -29,19 +29,17 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
   const rarityColor = getRarityColor(item.rarity);
   const isEntropic = item.rarity === 'entropic';
   
-  // FIX: Ensure case-insensitive check for modifiers
+  // Case-insensitive check
   const isModifier = item.type?.toLowerCase() === 'modifier';
   const count = userItem.count || 1;
   const isBody = item.slot === 'body';
 
   const handleAction = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Stop click from bubbling to container
-
+    e.stopPropagation();
     if (item.type === 'music') {
       showToast(`Downloading: ${item.name}.mp3`, 'success');
     } else if (isModifier) {
-      // For modifiers, "onEquip" acts as the "Use" trigger
-      onEquip();
+      onEquip(); // Trigger Use
     } else if (isEquipped && !isBody) {
       onUnequip();
     } else {
@@ -55,11 +53,8 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
       let transformStyle = 'scale(1.2) translateY(5px)';
       
       if (part === 'body') {
-          if (item.name.toLowerCase().includes('banana')) {
-              transformStyle = 'scale(1.1) translateY(5px)';
-          } else {
-              transformStyle = 'scale(1.6) translateY(-18px)';
-          }
+          if (item.name.toLowerCase().includes('banana')) transformStyle = 'scale(1.1) translateY(5px)';
+          else transformStyle = 'scale(1.6) translateY(-18px)';
       }
       if (part === 'head') transformStyle = 'scale(1.6) translateY(12px)';
       if (part === 'face') transformStyle = 'scale(2.2) translateY(5px)';
@@ -69,11 +64,8 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
         <div style={{ width: '100%', height: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ transform: transformStyle }}>
             <Avatar
-              gender={profile.gender}
-              skinTone={profile.skin_tone}
-              eyeColor={profile.eye_color}
-              hairColor={profile.hair_color}
-              hairStyle={profile.hair_style}
+              gender={profile.gender} skinTone={profile.skin_tone} eyeColor={profile.eye_color}
+              hairColor={profile.hair_color} hairStyle={profile.hair_style}
               equippedHead={part === 'head' ? item.name : undefined}
               equippedImage={part === 'face' ? item.name : undefined}
               equippedBody={part === 'body' ? item.name : undefined}
@@ -88,13 +80,20 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
     return <span style={{ fontSize: '28px' }}>{item.image_url}</span>;
   };
 
-  // Determine Button Style based on Type
-  const buttonStyle = {
+  // Tighter Button Style
+  const buttonStyle: React.CSSProperties = {
       backgroundColor: isModifier ? '#2563eb' : isEquipped ? '#fee2e2' : '#c0c0c0', 
       color: isModifier ? 'white' : isEquipped ? '#991b1b' : 'black',
       border: '1px solid #808080',
       boxShadow: '1px 1px 0 black',
-      fontSize: '10px', fontWeight: 'bold', padding: '4px', cursor: 'pointer', marginTop: 'auto',
+      fontSize: '9px', // Smaller font
+      fontWeight: 'bold', 
+      padding: '4px 2px', // Tighter padding
+      cursor: 'pointer', 
+      marginTop: 'auto',
+      width: '100%', // Force fit
+      whiteSpace: 'nowrap', // Prevent text wrap
+      boxSizing: 'border-box'
   };
 
   return (
@@ -103,6 +102,7 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
         backgroundColor: isEquipped ? '#dcfce7' : '#e5e5e5', 
         border: isEquipped ? '2px solid #16a34a' : '1px solid white'
     }}>
+      {/* Rarity Header */}
       <div style={{ 
           backgroundColor: rarityColor, color: 'white', fontSize: '9px', fontWeight: 'bold', 
           padding: '2px 4px', textTransform: 'uppercase', textAlign: 'center', letterSpacing: '1px',
@@ -111,26 +111,34 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
           {item.rarity?.replace('_', ' ') || 'COMMON'}
       </div>
 
-      {count > 1 && (
-          <div style={{ position: 'absolute', top: '22px', right: '4px', backgroundColor: '#ef4444', color: 'white', borderRadius: '50%', width: '18px', height: '18px', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid white', zIndex: 10 }}>
-              {count}
-          </div>
-      )}
-
-      <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', flex: 1, gap: '8px' }}>
-          <div className="retro-inset" style={{ backgroundColor: 'white', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', flex: 1, gap: '6px' }}>
+          
+          {/* Image Container with Stack Count Inside */}
+          <div className="retro-inset" style={{ position: 'relative', backgroundColor: 'white', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {renderPreview()}
+            
+            {/* FIXED STACK COUNT LOCATION */}
+            {count > 1 && (
+                <div style={{ 
+                    position: 'absolute', bottom: '2px', right: '2px', 
+                    backgroundColor: '#ef4444', color: 'white', 
+                    borderRadius: '4px', padding: '0 4px',
+                    fontSize: '9px', fontWeight: 'bold', 
+                    boxShadow: '1px 1px 0 rgba(0,0,0,0.5)', zIndex: 10 
+                }}>
+                    x{count}
+                </div>
+            )}
           </div>
 
-          <div style={{ flex: 1 }}>
-            <h3 style={{ fontSize: '11px', fontWeight: 'bold', lineHeight: '1.2' }}>{item.name}</h3>
-            <p style={{ fontSize: '9px', color: '#666', marginTop: '2px' }}>{item.type}</p>
+          <div style={{ flex: 1, minHeight: '24px' }}>
+            <h3 style={{ fontSize: '10px', fontWeight: 'bold', lineHeight: '1.1', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                {item.name}
+            </h3>
+            <p style={{ fontSize: '8px', color: '#666' }}>{item.type}</p>
           </div>
 
-          <button 
-            onClick={handleAction}
-            style={buttonStyle}
-          >
+          <button onClick={handleAction} style={buttonStyle}>
             {item.type === 'music' ? 'DOWNLOAD' : isModifier ? 'USE ITEM' : isEquipped && !isBody ? 'UNEQUIP' : 'EQUIP'}
           </button>
       </div>
