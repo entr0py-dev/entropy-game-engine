@@ -198,22 +198,29 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
 
       const { data: rawInventory } = await supabase.from("user_items").select("*").eq("user_id", userId);
       
-      if (rawInventory && itemsData) {
+   if (rawInventory && itemsData) {
         const groupedMap = new Map<string, UserItem>();
+        
         rawInventory.forEach((row) => {
             const details = itemsData.find(i => i.id === row.item_id);
             if (!details) return;
-            if (details.type === 'modifier') {
-                if (groupedMap.has(details.id)) {
-                    const existing = groupedMap.get(details.id)!;
-                    existing.count = (existing.count || 1) + 1;
-                } else {
-                    groupedMap.set(details.id, { ...row, item_details: details, count: 1 });
-                }
+
+            // Use Item ID as key for modifiers to group them
+            // For unique items (like specific NFT instances), use Row ID
+            const key = details.type === 'modifier' ? details.id : row.id;
+
+            if (groupedMap.has(key)) {
+                const existing = groupedMap.get(key)!;
+                // Increment count
+                existing.count = (existing.count || 1) + 1;
             } else {
-                groupedMap.set(row.id, { ...row, item_details: details, count: 1 });
+                // Init new entry
+                groupedMap.set(key, { ...row, item_details: details, count: 1 });
             }
         });
+        
+        setInventory(Array.from(groupedMap.values()));
+      }
         setInventory(Array.from(groupedMap.values()));
       } else {
         setInventory([]);
