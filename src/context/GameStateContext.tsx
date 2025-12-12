@@ -27,8 +27,7 @@ export type Profile = {
   equipped_image?: string | null;
   xp: number;
   level: number;
-  // --- NEW: MODIFIER EXPIRY ---
-  duplication_expires_at?: string; 
+  duplication_expires_at?: string; // Timer field
 };
 
 export type Quest = {
@@ -99,7 +98,6 @@ type GameState = {
   buyItem: (itemId: string) => Promise<void>;
   equipItem: (item: Item) => Promise<void>;
   unequipItem: (slot: string) => Promise<void>;
-  // --- NEW: USE MODIFIER ---
   useModifier: (itemId: string, itemType: string) => Promise<void>;
   cosmeticSets: CosmeticSet[];
   claimedSets: string[];
@@ -143,6 +141,12 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     const { data: sessionData } = await supabase.auth.getSession();
     const currentSession = sessionData.session;
     setSession(currentSession);
+
+    // If session missing, stop early to avoid 400 errors
+    if (!currentSession) {
+        setLoading(false);
+        return;
+    }
 
     const { data: questsData } = await supabase.from("quests").select("*");
     setQuests(questsData || []);
@@ -226,58 +230,36 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     return () => { authListener.subscription.unsubscribe(); };
   }, [loadGameState]);
 
-  // --- AUTO-COMPLETE "WELCOME" QUEST ON LOGIN ---
+  // --- AUTO-COMPLETE "WELCOME" QUEST ---
   useEffect(() => {
     if (!profile || quests.length === 0 || loading) return;
-
     const welcomeTitle = "Welcome to the ENTROVERSE";
     const welcomeQuest = quests.find(q => q.title === welcomeTitle);
-
     if (welcomeQuest) {
-        // Check if user has already done it
         const isDone = userQuests.some(uq => uq.quest_id === welcomeQuest.id && uq.status === 'completed');
-        
-        // If NOT done, complete it immediately
         if (!isDone) {
-            console.log("First login detected. Completing Welcome Quest...");
             completeQuest(welcomeQuest.id);
         }
     }
   }, [profile, quests, userQuests, loading]);
 
-// --- LEVEL UP LISTENER ---
+  // --- LEVEL UP LISTENER ---
   useEffect(() => {
-    // 1. Safety Checks
     if (loading || !profile || quests.length === 0) return;
-
     const checkLevelQuest = async (questTitle: string, levelReq: number) => {
-        // Only run if user meets level requirement
         if (profile.level >= levelReq) {
-            
-            // FIX: Case-Insensitive Search
             const quest = quests.find(q => q.title.toLowerCase() === questTitle.toLowerCase());
-            
-            if (!quest) {
-                console.warn(`⚠️ Level System: Could not find quest titled "${questTitle}" in database.`);
-                return;
-            }
-
-            // Check if already done
+            if (!quest) return;
             const isDone = userQuests.some(uq => uq.quest_id === quest.id && uq.status === 'completed');
-            
             if (!isDone) {
-                console.log(`🚀 Level Milestone Reached: ${levelReq} -> Completing "${quest.title}"...`);
                 await completeQuest(quest.id);
             }
         }
     };
-
-    // Define Milestones
-    checkLevelQuest('ENTROPIC NOVICE', 5);    // Level 5
-    checkLevelQuest('ENTROPIC INITIATE', 10); // Level 10
-    checkLevelQuest('ENTROPIC ADEPT', 15);    // Level 15
-    checkLevelQuest('ENTROPIC EXPLORER', 20); // Level 20
-    
+    checkLevelQuest('ENTROPIC NOVICE', 5);
+    checkLevelQuest('ENTROPIC INITIATE', 10);
+    checkLevelQuest('ENTROPIC ADEPT', 15);
+    checkLevelQuest('ENTROPIC EXPLORER', 20);
   }, [profile?.level, quests, userQuests, loading]);
   
   async function addEntrobucks(amount: number, source = 'system') {
@@ -312,18 +294,12 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
   
   async function completeQuest(questId: string) { 
     if (!session?.user) return;
-
-    // --- 1. SAFETY GUARD: Check Local State First ---
     const existingLocal = userQuests.find((q) => q.quest_id === questId);
-    if (existingLocal?.status === 'completed') {
-        return; 
-    }
-    // ------------------------------------------------
+    if (existingLocal?.status === 'completed') return; 
 
     const quest = quests.find((q) => q.id === questId); 
     if (!quest) return; 
     
-    // 2. Mark Complete in DB
     const { data, error } = await supabase.from("user_quests").upsert({ 
         user_id: session.user.id, 
         quest_id: questId, 
@@ -333,12 +309,10 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     }, { onConflict: "user_id,quest_id" }).select().single();
 
     if (!error && data) { 
-        // Update Local State
         setUserQuests((prev) => prev.some((q) => q.quest_id === questId) ? prev.map((q) => (q.quest_id === questId ? { ...q, status: "completed", progress: 100 } : q)) : [...prev, data as UserQuest] );
         
         logTransaction('QUEST_COMPLETE', 0, `Completed Quest: ${quest.title}`);
 
-        // 3. Award Primary Item
         let rewardItemName = undefined;
         if (quest.reward_item) {
              const { data: itemData } = await supabase.from("items").select("id, name").eq("name", quest.reward_item).maybeSingle();
@@ -348,19 +322,14 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
              }
         }
 
-        // 4. [BONUS] Award "black top" for the Welcome Quest
         if (quest.title === "Welcome to the ENTROVERSE") {
             const { data: blackTop } = await supabase.from("items").select("id").eq("name", "Default Black Top").maybeSingle();
-            if (blackTop) {
-                await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: blackTop.id });
-            }
+            if (blackTop) await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: blackTop.id });
         }
 
-        // 5. Refresh Inventory
         const { data: newInv } = await supabase.from("user_items").select("*, item_details:items(*)").eq("user_id", session.user.id);
         if (newInv) setInventory(newInv as any);
 
-        // 6. Trigger Toast
         showToast(quest.title, 'quest', {
             xp: quest.reward_xp,
             entrobucks: quest.reward_entrobucks,
@@ -368,7 +337,6 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             profile: profile 
         });
 
-        // 7. Award Currency & XP
         if (quest.reward_entrobucks > 0) await addEntrobucks(quest.reward_entrobucks, `Quest Reward: ${quest.title}`);
         if (quest.reward_xp > 0) { 
             const { error: xpError } = await supabase.rpc("add_xp", { user_id: session.user.id, amount: quest.reward_xp });
@@ -408,18 +376,16 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     
     const paid = await spendEntrobucks(item.cost, `Purchased ${item.name}`);
     if (!paid) { showToast("Payment failed", "error"); return; }
-    // Use the RPC function to handle stacking automatically
-    const { error } = await supabase.rpc('add_item', { 
-        p_user_id: session.user.id, 
-        p_item_id: itemId 
-    });
+    
+    const { error } = await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: itemId });
     if (error) { showToast("Database Error", "error"); return; }
     logTransaction('PURCHASE', -item.cost, `Bought Item`, item.name);
 
     await loadGameState();
     showToast(`Purchased ${item.name}!`, "success");
   }
-// --- NEW: USE MODIFIER (Server-Side Logic) ---
+
+  // --- NEW: USE MODIFIER (RPC Version) ---
   const useModifier = async (itemId: string, itemName: string) => {
     if (!session?.user || !profile) return;
 
@@ -428,9 +394,10 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         const expiry = new Date();
         expiry.setMinutes(expiry.getMinutes() + 15);
         
+        // Show timer instantly
         setProfile({ ...profile, duplication_expires_at: expiry.toISOString() });
         
-        // Remove 1 from local inventory immediately
+        // Remove 1 from local inventory instantly
         setInventory((prev) => {
             const copy = [...prev];
             const index = copy.findIndex(i => i.item_id === itemId);
@@ -444,7 +411,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             return copy;
         });
 
-        // 2. Call the "Silver Bullet" Server Function
+        // 2. Call Server Function (Bypass RLS/Permissions)
         const { error } = await supabase.rpc('use_duplication_glitch', {
             p_user_id: session.user.id,
             p_item_id: itemId
@@ -473,8 +440,6 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     if (!session?.user || !profile) return;
     const updates: any = {};
     const slot = item.slot || 'face';
-
-    // FIX: Save the item NAME for badges/modifiers so Avatar.tsx can match keywords.
     if (slot === 'badge') updates.equipped_badge = item.name; 
     else if (slot === 'head') updates.equipped_head = item.name;
     else if (slot === 'body') updates.equipped_body = item.name;
@@ -498,56 +463,36 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     showToast(`Unequipped item`, "info");
   }
 
-  // --- SETS LOGIC ---
   async function claimSetBonus(setId: string) {
     if (!session?.user || !profile) return;
-    
     const set = cosmeticSets.find(s => s.id === setId);
     if (!set) return;
     if (claimedSets.includes(setId)) {
         showToast("You have already claimed this set!", "info");
         return;
     }
-
-    // Check ownership
     const ownedItemIds = inventory.map(i => i.item_id);
     const hasAll = set.items.every(reqId => ownedItemIds.includes(reqId));
-    
     if (!hasAll) {
         showToast("You don't have all items in this set!", "error");
         return;
     }
-
-    // 1. Claim in DB
     const { error: claimError } = await supabase.from("user_set_claims").insert({
         user_id: session.user.id,
         set_id: setId
     });
-
     if (claimError) {
-        console.error("Claim Error:", claimError);
         showToast("Error claiming set", "error");
         return;
     }
-
-    // 2. Award XP (Check for RPC errors)
     const { error: xpError } = await supabase.rpc("add_xp", { 
         user_id: session.user.id, 
         amount: set.xp_reward 
     });
-
-    if (xpError) {
-        console.error("XP Error:", xpError);
-        showToast("Set claimed, but XP failed. Contact support.", "error");
-    } else {
-        // 3. Update Local State Immediately
+    if (!xpError) {
         setClaimedSets(prev => [...prev, setId]);
-        
-        // Optimistic XP Update (so bar moves instantly)
-        const newXp = (profile.xp || 0) + set.xp_reward;
-        setProfile({ ...profile, xp: newXp }); 
-
-        await loadGameState(); // Fetch true level/xp from DB
+        setProfile({ ...profile, xp: (profile.xp || 0) + set.xp_reward }); 
+        await loadGameState(); 
         showToast(`SET COMPLETED! +${set.xp_reward} XP`, "success");
     }
   }
@@ -558,7 +503,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         session, profile, loading, refreshGameState: loadGameState,
         addEntrobucks, spendEntrobucks, quests, userQuests, startQuest, completeQuest, incrementQuest,
         shopItems, inventory, buyItem, equipItem, unequipItem,
-        useModifier, // Added here
+        useModifier, 
         cosmeticSets, claimedSets, claimSetBonus,
         activeWindow, setActiveWindow, logTransaction
       }}
