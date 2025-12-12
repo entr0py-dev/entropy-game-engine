@@ -400,18 +400,17 @@ useEffect(() => {
   }
 
   // --- NEW: USE MODIFIER (RPC Version) ---
-  const useModifier = async (itemId: string, itemName: string) => {
-    if (!session?.user || !profile) return;
+const useModifier = async (itemId: string, itemName: string) => {
+    console.log("👾 ACTIVATING:", itemName);
 
     if (itemName === 'Duplication Glitch') {
         // 1. Optimistic Update (Instant Visuals)
         const expiry = new Date();
         expiry.setMinutes(expiry.getMinutes() + 15);
         
-        // Show timer instantly
-        setProfile({ ...profile, duplication_expires_at: expiry.toISOString() });
+        setProfile(prev => prev ? { ...prev, duplication_expires_at: expiry.toISOString() } : null);
         
-        // Remove 1 from local inventory instantly
+        // Remove 1 from inventory visually
         setInventory((prev) => {
             const copy = [...prev];
             const index = copy.findIndex(i => i.item_id === itemId);
@@ -425,25 +424,21 @@ useEffect(() => {
             return copy;
         });
 
-        // 2. Call Server Function (Bypass RLS/Permissions)
+        // 2. Server Action
         const { error } = await supabase.rpc('use_duplication_glitch', {
-            p_user_id: session.user.id,
+            p_user_id: session?.user.id,
             p_item_id: itemId
         });
 
         if (error) {
-            console.error("Glitch Activation Failed:", error);
-            // Revert state if it failed
-            await loadGameState();
+            console.error("❌ RPC Error:", error);
+            await loadGameState(); // Revert on failure
         } else {
-            // Success Message
+            console.log("✅ Glitch Activated Successfully");
             if (window.top) {
                 window.top.postMessage({
                     type: 'SHOW_TOAST',
-                    payload: {
-                        message: "SYSTEM HACK: 2X MULTIPLIER ACTIVE (15m)",
-                        toastType: "info"
-                    }
+                    payload: { message: "SYSTEM HACK: 2X ACTIVE", toastType: "info" }
                 }, '*');
             }
         }
