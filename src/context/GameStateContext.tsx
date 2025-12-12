@@ -27,6 +27,8 @@ export type Profile = {
   equipped_image?: string | null;
   xp: number;
   level: number;
+  // --- NEW: MODIFIER EXPIRY ---
+  duplication_expires_at?: string; 
 };
 
 export type Quest = {
@@ -97,6 +99,8 @@ type GameState = {
   buyItem: (itemId: string) => Promise<void>;
   equipItem: (item: Item) => Promise<void>;
   unequipItem: (slot: string) => Promise<void>;
+  // --- NEW: USE MODIFIER ---
+  useModifier: (itemId: string, itemType: string) => Promise<void>;
   cosmeticSets: CosmeticSet[];
   claimedSets: string[];
   claimSetBonus: (setId: string) => Promise<void>;
@@ -182,6 +186,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
           equipped_body: profileData.equipped_body,
           xp: profileData.xp ?? 0,
           level: profileData.level ?? 1,
+          duplication_expires_at: profileData.duplication_expires_at // Load timer from DB
       } : null);
 
       const { data: userQuestData } = await supabase.from("user_quests").select("*").eq("user_id", userId);
@@ -250,7 +255,6 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         if (profile.level >= levelReq) {
             
             // FIX: Case-Insensitive Search
-            // This finds the quest even if DB is "Entropic Initiate" and code is "ENTROPIC INITIATE"
             const quest = quests.find(q => q.title.toLowerCase() === questTitle.toLowerCase());
             
             if (!quest) {
@@ -310,8 +314,6 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     if (!session?.user) return;
 
     // --- 1. SAFETY GUARD: Check Local State First ---
-    // If we already know this quest is done, STOP immediately.
-    // This prevents re-toasting on page reloads/sidebar toggles.
     const existingLocal = userQuests.find((q) => q.quest_id === questId);
     if (existingLocal?.status === 'completed') {
         return; 
@@ -418,13 +420,56 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     showToast(`Purchased ${item.name}!`, "success");
   }
 
+  // --- NEW: USE MODIFIER ---
+  const useModifier = async (itemId: string, itemName: string) => {
+    if (!session?.user || !profile) return;
+
+    // 1. DUPLICATION GLITCH
+    if (itemName === 'Duplication Glitch') {
+        const expiry = new Date();
+        expiry.setMinutes(expiry.getMinutes() + 15); // +15 mins
+
+        // Find a specific instance to consume
+        const { data: userItem } = await supabase
+            .from("user_items")
+            .select("id")
+            .eq("user_id", session.user.id)
+            .eq("item_id", itemId)
+            .limit(1)
+            .maybeSingle();
+
+        if (userItem) {
+            // Delete one item
+            await supabase.from("user_items").delete().eq("id", userItem.id);
+            
+            // Set Timer
+            const { error } = await supabase
+                .from("profiles")
+                .update({ duplication_expires_at: expiry.toISOString() })
+                .eq("id", session.user.id);
+
+            if (!error) {
+                await loadGameState();
+                if (window.top) {
+                    window.top.postMessage({
+                        type: 'SHOW_TOAST',
+                        payload: {
+                            message: "SYSTEM HACK: 2X MULTIPLIER ACTIVE (15m)",
+                            toastType: "info"
+                        }
+                    }, '*');
+                }
+            }
+        }
+    }
+  };
+
   async function equipItem(item: Item) {
     if (!session?.user || !profile) return;
     const updates: any = {};
     const slot = item.slot || 'face';
 
     // FIX: Save the item NAME for badges/modifiers so Avatar.tsx can match keywords.
-    // Previously it saved item.image_url, which was just an emoji.
     if (slot === 'badge') updates.equipped_badge = item.name; 
     else if (slot === 'head') updates.equipped_head = item.name;
     else if (slot === 'body') updates.equipped_body = item.name;
@@ -508,6 +553,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         session, profile, loading, refreshGameState: loadGameState,
         addEntrobucks, spendEntrobucks, quests, userQuests, startQuest, completeQuest, incrementQuest,
         shopItems, inventory, buyItem, equipItem, unequipItem,
+        useModifier, // Added here
         cosmeticSets, claimedSets, claimSetBonus,
         activeWindow, setActiveWindow, logTransaction
       }}
