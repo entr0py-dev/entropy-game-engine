@@ -420,9 +420,14 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     showToast(`Purchased ${item.name}!`, "success");
   }
 
-// --- NEW: USE MODIFIER (With Optimistic Updates) ---
+// --- NEW: USE MODIFIER ---
   const useModifier = async (itemId: string, itemName: string) => {
-    if (!session?.user || !profile) return;
+    console.log(`[DEBUG] Attempting to use modifier: ${itemName} (${itemId})`);
+    
+    if (!session?.user || !profile) {
+        console.error("[DEBUG] No session or profile found.");
+        return;
+    }
 
     // 1. DUPLICATION GLITCH
     if (itemName === 'Duplication Glitch') {
@@ -430,16 +435,15 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         expiry.setMinutes(expiry.getMinutes() + 15); // +15 mins
         const expiryString = expiry.toISOString();
 
-        // --- A. OPTIMISTIC UPDATE (Instant Visuals) ---
-        // 1. Update Profile State immediately (Show Timer)
+        console.log(`[DEBUG] Setting expiry to: ${expiryString}`);
+
+        // --- OPTIMISTIC UPDATE (Instant Visuals) ---
         setProfile((prev) => prev ? { ...prev, duplication_expires_at: expiryString } : null);
         
-        // 2. Update Inventory State immediately (Remove Item)
         setInventory((prev) => {
             const copy = [...prev];
             const index = copy.findIndex(i => i.item_id === itemId);
             if (index !== -1) {
-                // If stack > 1, decrease count. If 1, remove row.
                 if ((copy[index].count || 1) > 1) {
                     copy[index] = { ...copy[index], count: (copy[index].count || 1) - 1 };
                 } else {
@@ -449,9 +453,9 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             return copy;
         });
 
-        // --- B. DATABASE OPERATIONS ---
-        // 1. Find a specific instance to delete in DB
-        const { data: userItem } = await supabase
+        // --- DATABASE OPERATIONS ---
+        // 1. Find specific row to delete
+        const { data: userItem, error: findError } = await supabase
             .from("user_items")
             .select("id")
             .eq("user_id", session.user.id)
@@ -459,32 +463,54 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             .limit(1)
             .maybeSingle();
 
-        if (userItem) {
-            // Delete from DB
-            const { error: delError } = await supabase.from("user_items").delete().eq("id", userItem.id);
-            if (delError) console.error("Item Delete Failed (Check RLS):", delError);
-            
-            // Set Timer in DB
-            const { error: profileError } = await supabase
-                .from("profiles")
-                .update({ duplication_expires_at: expiryString })
-                .eq("id", session.user.id);
-
-            if (!profileError && !delError) {
-                // Trigger Visual Toast
-                if (window.top) {
-                    window.top.postMessage({
-                        type: 'SHOW_TOAST',
-                        payload: {
-                            message: "SYSTEM HACK: 2X MULTIPLIER ACTIVE (15m)",
-                            toastType: "info"
-                        }
-                    }, '*');
-                }
-                // Reload state to ensure sync
-                await loadGameState();
-            }
+        if (findError) console.error("[DEBUG] Error finding item row:", findError);
+        if (!userItem) {
+            console.error("[DEBUG] Could not find item row in user_items table.");
+            return;
         }
+
+        console.log(`[DEBUG] Found row ID to delete: ${userItem.id}`);
+
+        // 2. Delete Item
+        const { error: delError } = await supabase.from("user_items").delete().eq("id", userItem.id);
+        if (delError) {
+            console.error("[DEBUG] DELETE FAILED:", delError.message);
+            alert("Database Error: Could not delete item. Check RLS policies.");
+        } else {
+            console.log("[DEBUG] Item deleted successfully.");
+        }
+        
+        // 3. Update Profile Timer
+        const { error: profileError } = await supabase
+            .from("profiles")
+            .update({ duplication_expires_at: expiryString })
+            .eq("id", session.user.id);
+
+        if (profileError) {
+            console.error("[DEBUG] PROFILE UPDATE FAILED:", profileError.message);
+        } else {
+            console.log("[DEBUG] Timer saved to profile.");
+        }
+
+        if (!profileError && !delError) {
+            if (window.top) {
+                window.top.postMessage({
+                    type: 'SHOW_TOAST',
+                    payload: {
+                        message: "SYSTEM HACK: 2X MULTIPLIER ACTIVE (15m)",
+                        toastType: "info"
+                    }
+                }, '*');
+            }
+            
+            // Sync with DB (Wait a moment to ensure DB processes the write)
+            setTimeout(() => {
+                console.log("[DEBUG] Refreshing Game State...");
+                loadGameState();
+            }, 500);
+        }
+    } else {
+        console.warn(`[DEBUG] Item name '${itemName}' did not match 'Duplication Glitch'`);
     }
   };
 
