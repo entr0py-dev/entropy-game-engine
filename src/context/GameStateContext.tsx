@@ -28,7 +28,7 @@ export type Profile = {
   equipped_image?: string | null;
   xp: number;
   level: number;
-  duplication_expires_at?: string; // This exists in type...
+  duplication_expires_at?: string; // Timer field
 };
 
 export type Quest = {
@@ -143,7 +143,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     const currentSession = sessionData.session;
     setSession(currentSession);
 
-    // If session missing, stop early
+    // If session missing, stop early to avoid 400 errors
     if (!currentSession) {
         setLoading(false);
         return;
@@ -175,7 +175,6 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
 
       const { data: profileData } = await supabase.from("profiles").select("*").eq("id", userId).single();
       
-      // --- CRITICAL FIX HERE: MAPPING THE TIMER FIELD ---
       setProfile(profileData ? {
           id: profileData.id,
           username: profileData.username,
@@ -193,7 +192,8 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
           equipped_body: profileData.equipped_body,
           xp: profileData.xp ?? 0,
           level: profileData.level ?? 1,
-          duplication_expires_at: profileData.duplication_expires_at // <--- THIS WAS MISSING
+          // --- THIS IS THE FIX FOR THE TIMER DISAPPEARING ---
+          duplication_expires_at: profileData.duplication_expires_at 
       } : null);
 
       const { data: userQuestData } = await supabase.from("user_quests").select("*").eq("user_id", userId);
@@ -330,7 +330,12 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         const { data: newInv } = await supabase.from("user_items").select("*, item_details:items(*)").eq("user_id", session.user.id);
         if (newInv) setInventory(newInv as any);
 
-        showToast(quest.title, 'quest', { xp: quest.reward_xp, entrobucks: quest.reward_entrobucks, itemName: rewardItemName, profile: profile });
+        showToast(quest.title, 'quest', {
+            xp: quest.reward_xp,
+            entrobucks: quest.reward_entrobucks,
+            itemName: rewardItemName,
+            profile: profile 
+        });
 
         if (quest.reward_entrobucks > 0) await addEntrobucks(quest.reward_entrobucks, `Quest Reward: ${quest.title}`);
         if (quest.reward_xp > 0) { 
@@ -350,10 +355,13 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
       const newProgress = (userQuest.progress || 0) + amount;
       const target = (questDef as any).target_value || 1; 
       
-      if (newProgress >= target) await completeQuest(questDef.id);
-      else { 
+      if (newProgress >= target) { 
+          await completeQuest(questDef.id);
+      } else { 
           const { error } = await supabase.from("user_quests").update({ progress: newProgress }).eq("id", userQuest.id);
-          if (!error) setUserQuests((prev) => prev.map((uq) => uq.id === userQuest.id ? { ...uq, progress: newProgress } : uq));
+          if (!error) { 
+              setUserQuests((prev) => prev.map((uq) => uq.id === userQuest.id ? { ...uq, progress: newProgress } : uq));
+          } 
       } 
   }
 
@@ -374,12 +382,32 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     showToast(`Purchased ${item.name}!`, "success");
   }
 
-  // --- USE MODIFIER ---
-  async function useModifier(itemId: string, itemName: string) {
+  // --- NEW: USE MODIFIER (RPC Version) ---
+  const useModifier = async (itemId: string, itemName: string) => {
     if (!session?.user || !profile) return;
 
     if (itemName === 'Duplication Glitch') {
-        // Use RPC to handle delete + timer set in one go
+        const expiry = new Date();
+        expiry.setMinutes(expiry.getMinutes() + 15);
+        
+        // Optimistic UI
+        setProfile(prev => prev ? { ...prev, duplication_expires_at: expiry.toISOString() } : null);
+        
+        // Remove 1 from inventory visually
+        setInventory((prev) => {
+            const copy = [...prev];
+            const index = copy.findIndex(i => i.item_id === itemId);
+            if (index !== -1) {
+                if ((copy[index].count || 1) > 1) {
+                    copy[index] = { ...copy[index], count: (copy[index].count || 1) - 1 };
+                } else {
+                    copy.splice(index, 1);
+                }
+            }
+            return copy;
+        });
+
+        // Server Call
         const { error } = await supabase.rpc('use_duplication_glitch', {
             p_user_id: session.user.id,
             p_item_id: itemId
@@ -387,20 +415,24 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
 
         if (error) {
             console.error("RPC Error:", error);
-            showToast("Failed to use item", "error");
+            // Revert state if failed
+            await loadGameState();
         } else {
-            // Success! Trigger Toast & Reload Data
+            // Success Message
             if (window.top) {
                 window.top.postMessage({
                     type: 'SHOW_TOAST',
-                    payload: { message: "SYSTEM HACK: 2X ACTIVE", toastType: "info" }
+                    payload: {
+                        message: "SYSTEM HACK: 2X MULTIPLIER ACTIVE (15m)",
+                        toastType: "info"
+                    }
                 }, '*');
             }
-            // IMPORTANT: Reload game state so the Timer appears and Item disappears
+            // Sync with DB
             await loadGameState();
         }
     }
-  }
+  };
 
   async function equipItem(item: Item) {
     if (!session?.user || !profile) return;
