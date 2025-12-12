@@ -29,8 +29,8 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
   const rarityColor = getRarityColor(item.rarity);
   const isEntropic = item.rarity === 'entropic';
   
-  // Case-insensitive check
-  const isModifier = item.type?.toLowerCase() === 'modifier';
+  // FIX: Explicitly check for 'Duplication Glitch' name to ensure it renders as a modifier
+  const isModifier = item.type?.toLowerCase() === 'modifier' || item.name === 'Duplication Glitch';
   const count = userItem.count || 1;
   const isBody = item.slot === 'body';
 
