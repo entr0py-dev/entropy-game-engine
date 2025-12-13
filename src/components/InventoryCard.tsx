@@ -90,7 +90,7 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
       boxShadow: '1px 1px 0 black',
       fontSize: '8px', // Reduced to 8px
       fontWeight: 'bold', 
-      padding: '4px 0', // Zero horizontal padding
+      padding: '4px 4px', // Keep inside border box
       cursor: 'pointer', 
       marginTop: 'auto',
       width: '100%', 
@@ -100,7 +100,11 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
       display: 'flex', 
       justifyContent: 'center', 
       alignItems: 'center',
-      boxSizing: 'border-box' // Prevent background from bleeding outside frame
+      boxSizing: 'border-box', // Prevent background from bleeding outside frame
+      position: 'relative',
+      backgroundClip: 'padding-box',
+      lineHeight: '1.1',
+      minHeight: '28px'
   };
 
   return (
