@@ -69,14 +69,6 @@ function GameEngineContent() {
     }
   }
 
-  // --- AUTH REDIRECT (DISABLED TO ALLOW GUEST/LOGOUT STATE) ---
-  // If we force this, logging out becomes impossible as it bounces back to login.
-  /*
-  useEffect(() => {
-    if (!isEmbed && !loading && !session) window.location.href = "/login";
-  }, [loading, session, isEmbed]);
-  */
-
   useEffect(() => {
     async function ensureProfile() {
       if (loading || creatingProfile.current || hasTriedCreating.current) return;
@@ -136,7 +128,8 @@ function GameEngineContent() {
             <>
               {/* DEBUG BUTTONS */}
               <div style={{ position: "absolute", top: 12, left: 12, zIndex: 200, display: "flex", gap: "8px" }}>
-                <DebugButton label="+1000 XP" onClick={() => addDebugXp(1000)} />
+                {/* CHANGED TO 10,000 XP */}
+                <DebugButton label="+10,000 XP" onClick={() => addDebugXp(10000)} />
                 <DebugButton label="Test Drop (Hard)" onClick={() => handlePongWin('hard')} />
                 <DebugButton label="Test Drop (Med)" onClick={() => handlePongWin('medium')} />
               </div>
