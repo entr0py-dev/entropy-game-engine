@@ -99,7 +99,7 @@ type GameState = {
   buyItem: (itemId: string) => Promise<{ success: boolean; message: string }>;
   equipItem: (item: Item) => Promise<void>;
   unequipItem: (slot: string) => Promise<void>;
-  useModifier: (itemId: string, itemName: string) => Promise<void>;
+  useModifier: (itemId: string, itemType: string) => Promise<void>;
   cosmeticSets: CosmeticSet[];
   claimedSets: string[];
   claimSetBonus: (setId: string) => Promise<void>;
@@ -128,7 +128,10 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     if (!session?.user) return;
     supabase.from("transactions").insert({
         user_id: session.user.id,
-        type, amount, description: desc, item_name: itemName
+        type, 
+        amount,
+        description: desc,
+        item_name: itemName
     }).then(({ error }) => {
         if (error) console.error("Log Error:", error);
     });
@@ -196,16 +199,14 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
 
       const { data: rawInventory } = await supabase.from("user_items").select("*").eq("user_id", userId);
       
-      // Attach item details; leave stacking to the Inventory page
+      // --- NO STACKING LOGIC (1-to-1 Mapping) ---
       if (rawInventory && itemsData) {
-        const joined = rawInventory
-          .map((row) => {
-            const details = itemsData.find((i) => i.id === row.item_id);
-            if (!details) return null;
+        // Just map the DB rows directly to UserItem objects
+        const simpleInventory = rawInventory.map((row) => {
+            const details = itemsData.find(i => i.id === row.item_id);
             return { ...row, item_details: details, count: 1 };
-          })
-          .filter(Boolean) as UserItem[];
-        setInventory(joined);
+        });
+        setInventory(simpleInventory as any);
       } else {
         setInventory([]);
       }
@@ -215,10 +216,8 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
-  // --- STABLE AUTH LISTENER ---
   useEffect(() => {
     void loadGameState();
-
     const { data: authListener } = supabase.auth.onAuthStateChange((event, newSession) => {
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
             setSession(newSession); 
@@ -229,9 +228,8 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             setInventory([]);
         }
     });
-
     return () => { authListener.subscription.unsubscribe(); };
-  }, []);
+  }, []); // Keep empty dependency to prevent loops
 
   useEffect(() => {
     if (!profile || quests.length === 0 || loading) return;
@@ -349,17 +347,16 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
       } 
   }
 
+  // --- BUY ITEM (BLOCKS ALL DUPLICATES) ---
   async function buyItem(itemId: string): Promise<{ success: boolean; message: string }> {
     if (!session?.user || !profile) return { success: false, message: "Not logged in" };
     const item = shopItems.find(i => i.id === itemId);
     if (!item) return { success: false, message: "Item not found" };
     if (profile.entrobucks < item.cost) return { success: false, message: "Insufficient Entrobucks" };
     
-    // FIX: Allow multiple purchases for modifiers!
+    // RESTRICTION: Block duplicate purchases for EVERYTHING
     const alreadyOwns = inventory.some(i => i.item_id === itemId);
-    const isModifier = item.type?.toLowerCase() === 'modifier' || item.name === 'Duplication Glitch';
-    
-    if (alreadyOwns && !isModifier) return { success: false, message: "You already own this item" };
+    if (alreadyOwns) return { success: false, message: "You already own this item" };
 
     const paid = await spendEntrobucks(item.cost, `Purchased ${item.name}`);
     if (!paid) return { success: false, message: "Payment failed" };
@@ -373,6 +370,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     return { success: true, message: `Purchased ${item.name}!` };
   }
 
+  // --- USE MODIFIER (REMOVES ITEM) ---
   async function useModifier(itemId: string, itemName: string) {
     if (!session?.user || !profile) return;
 
@@ -380,16 +378,13 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         const expiry = new Date();
         expiry.setMinutes(expiry.getMinutes() + 15);
         
-        // 1. UPDATE TIMER (Immediate Visual)
+        // 1. UPDATE TIMER
         setProfile(prev => prev ? { ...prev, duplication_expires_at: expiry.toISOString() } : null);
         
-        // 2. DECREMENT STACK (Immediate Visual)
+        // 2. REMOVE ITEM FROM INVENTORY (Optimistic)
         setInventory((prev) => {
-            const copy = [...prev];
-            // Find first matching row (stacking handled in UI)
-            const index = copy.findIndex(i => i.item_details?.id === itemId || i.item_id === itemId);
-            if (index !== -1) copy.splice(index, 1);
-            return copy;
+            // Filter out the item with this ID
+            return prev.filter(i => i.item_id !== itemId);
         });
 
         // 3. SHOW TOAST
