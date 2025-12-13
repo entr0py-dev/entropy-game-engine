@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useGameState } from '@/context/GameStateContext';
+import type { UserItem } from '@/context/GameStateContext';
 import InventoryCard from '@/components/InventoryCard';
 import Avatar from '@/components/Avatar';
 
@@ -20,7 +21,29 @@ export default function InventoryPage({ isOverlay, onClose }: { isOverlay?: bool
   const getRarityWeight = (r?: string) => { if (r === 'entropic') return 5; if (r === 'ultra_rare') return 4; if (r === 'rare') return 3; if (r === 'uncommon') return 2; return 1; };
   const getSlotWeight = (slot?: string) => { if (slot === 'head') return 1; if (slot === 'face') return 2; if (slot === 'body') return 3; if (slot === 'badge') return 4; return 5; };
 
-  const filteredItems = inventory.filter(inv => {
+  // Group modifiers (Duplication Glitch & 12-sided die) locally for display
+  const groupedInventory = useMemo(() => {
+    const map = new Map<string, UserItem>();
+    inventory.forEach((inv) => {
+      const details = inv.item_details;
+      if (!details) return;
+      const type = details.type?.toLowerCase() || '';
+      const name = (details.name || '').toLowerCase();
+      const isModifier = type === 'modifier' || details.name === 'Duplication Glitch' || (name.includes('12') && name.includes('die'));
+      const key = isModifier ? details.id : inv.id;
+      if (map.has(key)) {
+        const existing = map.get(key)!;
+        const currentCount = existing.count || 1;
+        map.set(key, { ...existing, count: currentCount + 1 });
+      } else {
+        // Preserve a stable representative item_id for modifiers so actions use the correct definition id
+        map.set(key, { ...inv, item_id: details.id, item_details: details, count: 1 });
+      }
+    });
+    return Array.from(map.values());
+  }, [inventory]);
+
+  const filteredItems = groupedInventory.filter(inv => {
     if (activeTab === 'all' || activeTab === 'sets') return true;
     // FIX: Case-insensitive check ensures Modifiers show up in the right tab
     const type = inv.item_details?.type?.toLowerCase() || 'cosmetic';
@@ -195,7 +218,7 @@ export default function InventoryPage({ isOverlay, onClose }: { isOverlay?: bool
                                               onUnequip={() => unequipItem(details.slot || 'face')}
                                               profile={profile}
                                             />
-                                          
+                                            
                                         </div>
                                     );
                                 })}
