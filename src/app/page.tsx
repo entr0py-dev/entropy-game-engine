@@ -60,14 +60,41 @@ function GameEngineContent() {
 
   async function addDebugXp(amount: number) {
     if (!session?.user || !profile) return;
+
+    // Try RPC first
     const { error: rpcError } = await supabase.rpc("add_xp", {
       user_id: session.user.id,
       amount,
     });
-    if (!rpcError) {
-      await refreshGameState();
+
+    // If RPC fails (e.g. not updated on backend yet), use fallback logic
+    if (rpcError) {
+       console.warn("RPC failed, using client fallback");
+       let xpPool = (profile.xp ?? 0) + amount;
+       let level = profile.level ?? 1;
+       let threshold = level * 132; // UPDATED to 132
+
+       while (xpPool >= threshold) {
+         xpPool -= threshold;
+         level += 1;
+         threshold = level * 132; // UPDATED to 132
+       }
+
+       await supabase
+         .from("profiles")
+         .update({ xp: xpPool, level })
+         .eq("id", session.user.id);
     }
+    
+    await refreshGameState();
   }
+
+  // --- AUTH REDIRECT (DISABLED TO ALLOW GUEST/LOGOUT STATE) ---
+  /*
+  useEffect(() => {
+    if (!isEmbed && !loading && !session) window.location.href = "/login";
+  }, [loading, session, isEmbed]);
+  */
 
   useEffect(() => {
     async function ensureProfile() {
@@ -128,7 +155,6 @@ function GameEngineContent() {
             <>
               {/* DEBUG BUTTONS */}
               <div style={{ position: "absolute", top: 12, left: 12, zIndex: 200, display: "flex", gap: "8px" }}>
-                {/* CHANGED TO 10,000 XP */}
                 <DebugButton label="+10,000 XP" onClick={() => addDebugXp(10000)} />
                 <DebugButton label="Test Drop (Hard)" onClick={() => handlePongWin('hard')} />
                 <DebugButton label="Test Drop (Med)" onClick={() => handlePongWin('medium')} />
