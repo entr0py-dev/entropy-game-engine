@@ -196,27 +196,6 @@ export default function InventoryPage({ isOverlay, onClose }: { isOverlay?: bool
                                               profile={profile}
                                             />
                                             
-                                            {/* VISUAL HACK: Override the "Equip" button text for modifiers */}
-                                            {/* FIX: Lowercase check ensures this actually renders! */}
-                                            {isModifier && (
-                                                <div 
-                                                    onClick={(e) => {
-                                                        e.stopPropagation(); // Stop click from hitting InventoryCard
-                                                        console.log("Use Button Clicked for:", details.name); // Debug log
-                                                        useModifier(details.id, details.name);
-                                                    }}
-                                                    style={{ 
-                                                    position: 'absolute', bottom: '12px', left: '12px', right: '12px', 
-                                                    height: '30px', 
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    color: 'white', fontWeight: 'bold', fontSize: '10px',
-                                                    backgroundColor: '#2563eb', 
-                                                    zIndex: 20, // High Z-Index to stay on top
-                                                    cursor: 'pointer'
-                                                }}>
-                                                    USE ITEM
-                                                </div>
-                                            )}
                                         </div>
                                     );
                                 })}
