@@ -29,8 +29,9 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
   const rarityColor = getRarityColor(item.rarity);
   const isEntropic = item.rarity === 'entropic';
   
-  // FIX: Explicitly check for 'Duplication Glitch' name to ensure it renders as a modifier
-  const isModifier = item.type?.toLowerCase() === 'modifier' || item.name === 'Duplication Glitch';
+  // FIX: Explicitly check for duplication glitch & 12-sided die so they render/stack as modifiers
+  const lowerName = item.name.toLowerCase();
+  const isModifier = item.type?.toLowerCase() === 'modifier' || item.name === 'Duplication Glitch' || (lowerName.includes('12') && lowerName.includes('die'));
   const count = userItem.count || 1;
   const isBody = item.slot === 'body';
 
@@ -98,7 +99,8 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
       textOverflow: 'ellipsis',
       display: 'flex', 
       justifyContent: 'center', 
-      alignItems: 'center'
+      alignItems: 'center',
+      boxSizing: 'border-box' // Prevent background from bleeding outside frame
   };
 
   return (
