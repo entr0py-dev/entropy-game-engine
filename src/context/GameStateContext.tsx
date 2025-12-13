@@ -204,27 +204,38 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             const details = itemsData.find(i => i.id === row.item_id);
             if (!details) return;
             
-            // 1. ROBUST CHECK: Is this a modifier?
-            const isDupeGlitch = details.name === 'Duplication Glitch';
-            const isModifier = details.type?.toLowerCase().trim() === 'modifier' || isDupeGlitch;
+            // 1. ROBUST IDENTIFICATION
+            // Check both the Type AND the specific Name to ensure we catch the glitch
+            const type = details.type?.toLowerCase().trim() || '';
+            const name = details.name?.trim() || '';
+            const isStackable = type === 'modifier' || name === 'Duplication Glitch';
 
-            // 2. GROUPING KEY
-            // Modifiers group by their Definition ID (details.id)
-            // Normal items group by their Unique Row ID (row.id)
-            const key = isModifier ? details.id : row.id;
+            // 2. DETERMINE GROUPING KEY
+            // Stackable items group by their Definition ID (details.id)
+            // Unique items (Cosmetics) group by their Row ID (row.id)
+            const key = isStackable ? details.id : row.id;
 
             if (groupedMap.has(key)) {
-                // Stack found -> Increment count
+                // Stack found: Create a NEW object with incremented count (Critical for React to see the update)
                 const existing = groupedMap.get(key)!;
-                // Ensure count is number
                 const currentCount = existing.count || 1;
-                existing.count = currentCount + 1;
-                groupedMap.set(key, existing);
+                
+                groupedMap.set(key, { 
+                    ...existing, 
+                    count: currentCount + 1 
+                });
             } else {
-                // New Item -> Start stack at 1
-                groupedMap.set(key, { ...row, item_details: details, count: 1 });
+                // New Item: Initialize stack at 1
+                groupedMap.set(key, { 
+                    ...row, 
+                    item_details: details, 
+                    count: 1 
+                });
             }
         });
+        
+        setInventory(Array.from(groupedMap.values()));
+      }
         
         setInventory(Array.from(groupedMap.values()));
       }
