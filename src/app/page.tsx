@@ -72,12 +72,12 @@ function GameEngineContent() {
        console.warn("RPC failed, using client fallback");
        let xpPool = (profile.xp ?? 0) + amount;
        let level = profile.level ?? 1;
-       let threshold = level * 132; // UPDATED to 132
+       let threshold = level * 263; // UPDATED to 132
 
        while (xpPool >= threshold) {
          xpPool -= threshold;
          level += 1;
-         threshold = level * 132; // UPDATED to 132
+         threshold = level * 263; // UPDATED to 132
        }
 
        await supabase
