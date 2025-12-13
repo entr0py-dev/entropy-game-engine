@@ -231,11 +231,31 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
+// FIX: Stable listener with empty dependency array to stop infinite loops
   useEffect(() => {
+    // 1. Run the data fetch once when the app mounts
     void loadGameState();
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, newSession) => { setSession(newSession); void loadGameState(); });
+
+    // 2. Set up the listener for Auth changes
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+        
+        // Filter: Only reload data for important events
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+             setSession(session);
+             void loadGameState();
+        } 
+        // Filter: Clear data immediately on sign out
+        else if (event === 'SIGNED_OUT') {
+             setSession(null);
+             setProfile(null);
+             setInventory([]);
+        }
+        // Note: We ignore other events to prevent random refreshing
+    });
+
+    // Cleanup: Unsubscribe when the user leaves the page
     return () => { authListener.subscription.unsubscribe(); };
-  }, [loadGameState]);
+  }, []); // <--- EMPTY ARRAY: Crucial for stopping the loop
 
   useEffect(() => {
     if (!profile || quests.length === 0 || loading) return;
