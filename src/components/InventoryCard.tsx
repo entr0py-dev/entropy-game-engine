@@ -29,11 +29,10 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
   const rarityColor = getRarityColor(item.rarity);
   const isEntropic = item.rarity === 'entropic';
   
-  // FIX: Robust check for modifiers
+  // LOGIC: Robust modifier check
   const lowerName = item.name.toLowerCase();
   const isModifier = item.type?.toLowerCase() === 'modifier' || item.name === 'Duplication Glitch' || (lowerName.includes('12') && lowerName.includes('die'));
-  
-  const count = userItem.count && userItem.count > 0 ? userItem.count : 1;
+  const count = userItem.count || 1;
   const isBody = item.slot === 'body';
 
   const handleAction = (e: React.MouseEvent) => {
@@ -82,23 +81,6 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
     return <span style={{ fontSize: '28px' }}>{item.image_url}</span>;
   };
 
-  // Dynamic Button Style
-  const buttonStyle: React.CSSProperties = {
-      backgroundColor: isModifier ? '#2563eb' : isEquipped ? '#fee2e2' : '#c0c0c0', 
-      color: isModifier ? 'white' : isEquipped ? '#991b1b' : 'black',
-      border: '1px solid #808080',
-      boxShadow: '1px 1px 0 black',
-      fontSize: '10px', 
-      fontWeight: 'bold', 
-      padding: '4px', 
-      cursor: 'pointer', 
-      marginTop: 'auto',
-      width: '100%', 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center'
-  };
-
   return (
     <div className="retro-btn" style={{ 
         padding: 0, flexDirection: 'column', alignItems: 'stretch', height: '100%', position: 'relative',
@@ -114,21 +96,19 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
       </div>
 
       <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', flex: 1, gap: '6px' }}>
-          
           <div className="retro-inset" style={{ position: 'relative', backgroundColor: 'white', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {renderPreview()}
             
             {/* STACK COUNT */}
             {count > 1 && (
                 <div style={{ 
-                    position: 'absolute', bottom: '4px', right: '4px', 
+                    position: 'absolute', bottom: '2px', right: '2px', 
                     backgroundColor: '#ef4444', color: 'white', 
-                    borderRadius: '50%', width: '16px', height: '16px',
+                    borderRadius: '4px', padding: '0 4px',
                     fontSize: '9px', fontWeight: 'bold', 
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
                     boxShadow: '1px 1px 0 rgba(0,0,0,0.5)', zIndex: 10 
                 }}>
-                    {count}
+                    x{count}
                 </div>
             )}
           </div>
@@ -140,7 +120,16 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
             <p style={{ fontSize: '8px', color: '#666' }}>{item.type}</p>
           </div>
 
-          <button onClick={handleAction} style={buttonStyle}>
+          <button 
+            onClick={handleAction}
+            style={{
+                backgroundColor: isEquipped ? '#fee2e2' : '#c0c0c0', 
+                border: '1px solid #808080',
+                boxShadow: '1px 1px 0 black',
+                fontSize: '10px', fontWeight: 'bold', padding: '4px', cursor: 'pointer', marginTop: 'auto',
+                color: isEquipped ? '#991b1b' : 'black'
+            }}
+          >
             {item.type === 'music' ? 'DOWNLOAD' : isModifier ? 'USE' : isEquipped && !isBody ? 'UNEQUIP' : 'EQUIP'}
           </button>
       </div>
