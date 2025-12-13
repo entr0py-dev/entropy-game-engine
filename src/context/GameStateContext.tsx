@@ -201,8 +201,8 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
       const { data: rawInventory } = await supabase.from("user_items").select("*").eq("user_id", userId);
       
       // --- NO STACKING LOGIC (1-to-1 Mapping) ---
+      // This forces every item to be distinct, solving the "disappearing stack" issue.
       if (rawInventory && itemsData) {
-        // Just map the DB rows directly to UserItem objects
         const simpleInventory = rawInventory.map((row) => {
             const details = itemsData.find(i => i.id === row.item_id);
             return { ...row, item_details: details, count: 1 };
@@ -232,6 +232,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     return () => { authListener.subscription.unsubscribe(); };
   }, []); 
 
+  // Helpers
   useEffect(() => {
     if (!profile || quests.length === 0 || loading) return;
     const welcomeTitle = "Welcome to the ENTROVERSE";
@@ -374,7 +375,9 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
   // --- USE MODIFIER (Consumes Item) ---
   async function useModifier(itemId: string, itemName: string) {
     if (!session?.user || !profile) return;
-    if (itemName === 'Duplication Glitch') {
+    
+    // Checks for "Duplication Glitch" or "12 Sided Die" or any generic modifier containing "die"
+    if (itemName === 'Duplication Glitch' || itemName === '12 Sided Die' || itemName.toLowerCase().includes('die')) {
         const expiry = new Date(); expiry.setMinutes(expiry.getMinutes() + 15);
         setProfile(prev => prev ? { ...prev, duplication_expires_at: expiry.toISOString() } : null);
         
@@ -385,6 +388,41 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         
         supabase.rpc('use_duplication_glitch', { p_user_id: session.user.id, p_item_id: itemId }).then(({ error }) => { if (error) console.error("RPC Error:", error); });
     }
+  }
+
+  // --- NEW: HANDLE PONG WIN REWARDS ---
+  async function handlePongWin(difficulty: 'easy' | 'medium' | 'hard') {
+      if (!session?.user || !profile) return;
+
+      // 1. Calculate Drop Chance
+      let dropChance = 0.2; // 20% Base
+      // Check for Active Modifier (Boost to 40%)
+      if (profile.duplication_expires_at && new Date(profile.duplication_expires_at) > new Date()) {
+          dropChance = 0.4;
+      }
+
+      console.log(`Rolling for drop... Chance: ${dropChance}`); 
+
+      // 2. RNG Check
+      if (Math.random() > dropChance) return; // No drop
+
+      // 3. Determine Item Reward
+      // Hard = Top Hat, Easy/Medium = Moustache
+      const targetItemName = difficulty === 'hard' ? '8balls top hat' : '8balls moustache';
+
+      // 4. Check Ownership (Unique Unlocks)
+      const owned = inventory.some(i => i.item_details?.name.toLowerCase() === targetItemName.toLowerCase());
+      if (owned) return;
+
+      // 5. Fetch & Grant
+      const { data: itemData } = await supabase.from('items').select('id, name').ilike('name', targetItemName).maybeSingle();
+      if (itemData) {
+          const { error } = await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: itemData.id });
+          if (!error) {
+              await loadGameState();
+              showToast(`UNLOCKED RARE ITEM: ${itemData.name}`, 'success', { itemName: itemData.name, profile });
+          }
+      }
   }
 
   async function equipItem(item: Item) {
@@ -446,39 +484,6 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         await loadGameState(); 
         showToast(`SET COMPLETED! +${set.xp_reward} XP`, "success");
     }
-  }
-
-  // --- NEW: HANDLE PONG WIN (20% Drop Rate, 40% with Modifier) ---
-  async function handlePongWin(difficulty: 'easy' | 'medium' | 'hard') {
-      if (!session?.user || !profile) return;
-
-      // 1. Calculate Drop Chance
-      let dropChance = 0.2; // 20% Base
-      // Check for Active Modifier (Boost to 40%)
-      if (profile.duplication_expires_at && new Date(profile.duplication_expires_at) > new Date()) {
-          dropChance = 0.4;
-      }
-
-      // 2. RNG Check
-      if (Math.random() > dropChance) return; // No drop
-
-      // 3. Determine Item Reward
-      // Hard = Top Hat, Easy/Medium = Moustache
-      const targetItemName = difficulty === 'hard' ? '8balls top hat' : '8balls moustache';
-
-      // 4. Check Ownership (Unique Unlocks)
-      const owned = inventory.some(i => i.item_details?.name.toLowerCase() === targetItemName.toLowerCase());
-      if (owned) return;
-
-      // 5. Fetch & Grant
-      const { data: itemData } = await supabase.from('items').select('id, name').ilike('name', targetItemName).maybeSingle();
-      if (itemData) {
-          const { error } = await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: itemData.id });
-          if (!error) {
-              await loadGameState();
-              showToast(`UNLOCKED RARE ITEM: ${itemData.name}`, 'success', { itemName: itemData.name, profile });
-          }
-      }
   }
 
   return (
