@@ -18,16 +18,23 @@ export default function ShopPage({ isOverlay, onClose }: { isOverlay?: boolean, 
 
   // Split Items by Category
   const cosmetics = shopItems.filter(i => i.type === 'cosmetic');
-  const modifiers = shopItems.filter(i => i.type === 'modifier');
+  const modifiers = shopItems.filter(i => {
+    const lowerName = (i.name || '').toLowerCase();
+    return i.type === 'modifier' || i.name === 'Duplication Glitch' || (lowerName.includes('12') && lowerName.includes('die'));
+  });
   // Catch-all for others (badges generally aren't bought, but just in case)
   const others = shopItems.filter(i => i.type !== 'cosmetic' && i.type !== 'modifier');
 
   const renderGrid = (items: any[]) => (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px', marginBottom: '30px' }}>
         {items.map((item) => {
-            // FIX: If it's a modifier, allow unlimited purchases by treating as not owned
-            const isOwned = item.type !== 'modifier' && inventory.some((i) => i.item_id === item.id);
-            const canAfford = profile.entrobucks >= item.cost;
+            const lowerName = (item.name || '').toLowerCase();
+            const isModifier = item.type === 'modifier' || item.name === 'Duplication Glitch' || (lowerName.includes('12') && lowerName.includes('die'));
+            const stack = inventory.find((i) => i.item_id === item.id);
+            const modCount = stack?.count || 0;
+            const limitReached = isModifier && modCount >= 5;
+            const isOwned = (!isModifier && inventory.some((i) => i.item_id === item.id)) || limitReached;
+            const canAfford = profile.entrobucks >= item.cost && !limitReached;
             return (
                 <ItemCard key={item.id} item={item} isOwned={isOwned} canAfford={canAfford} onBuy={handleBuy} purchasing={purchasingId === item.id} profile={profile} />
             );
