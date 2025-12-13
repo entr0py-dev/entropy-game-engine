@@ -7,6 +7,9 @@ import { supabase } from '@/lib/supabaseClient';
 import Avatar from './Avatar';
 import ModifierTimer from './ModifierTimer';
 
+// Define the storage key matching supabaseClient.ts
+const STORAGE_KEY = "entropy-auth-token";
+
 interface SidebarProps {
   startOpen?: boolean;
   onCloseAll: () => void;
@@ -57,6 +60,21 @@ export default function Sidebar({ startOpen = false, onCloseAll }: SidebarProps)
         await refreshGameState();
     }
     setIsRepairing(false);
+  };
+
+  // --- ROBUST LOGOUT FUNCTION ---
+  const handleLogout = async () => {
+      // 1. Tell Supabase to kill the session on the server/client
+      await supabase.auth.signOut();
+      
+      // 2. FORCE CLEAR LocalStorage (This fixes the "logged back in on refresh" bug)
+      if (typeof window !== 'undefined') {
+          localStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem('supabase.auth.token'); // Safety cleanup
+      }
+
+      // 3. Redirect to Home Page (External)
+      window.location.href = "https://www.entropyofficial.com";
   };
 
   // --- RENDER CONTENT BASED ON STATE ---
@@ -191,10 +209,7 @@ export default function Sidebar({ startOpen = false, onCloseAll }: SidebarProps)
         {/* Footer */}
         <div style={{ padding: '16px', borderTop: '1px solid #808080', backgroundColor: '#c0c0c0' }}>
           <button
-            onClick={() => {
-              supabase.auth.signOut();
-              window.location.href = '/login';
-            }}
+            onClick={handleLogout}
             className="retro-btn"
             style={{ width: '100%', color: '#991b1b' }}
           >
