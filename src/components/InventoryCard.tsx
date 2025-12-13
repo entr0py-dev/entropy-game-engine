@@ -81,16 +81,15 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
     return <span style={{ fontSize: '28px' }}>{item.image_url}</span>;
   };
 
-  
-// Tighter Button Style (Fixed Sizing)
+  // Tighter Button Style (Fixed Sizing)
   const buttonStyle: React.CSSProperties = {
       backgroundColor: isModifier ? '#2563eb' : isEquipped ? '#fee2e2' : '#c0c0c0', 
       color: isModifier ? 'white' : isEquipped ? '#991b1b' : 'black',
       border: '1px solid #808080',
       boxShadow: '1px 1px 0 black',
-      fontSize: '8px', // Reduced to 8px
+      fontSize: '8px', 
       fontWeight: 'bold', 
-      padding: '4px 4px', // Keep inside border box
+      padding: '4px 0', // Zero horizontal padding
       cursor: 'pointer', 
       marginTop: 'auto',
       width: '100%', 
@@ -99,12 +98,7 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
       textOverflow: 'ellipsis',
       display: 'flex', 
       justifyContent: 'center', 
-      alignItems: 'center',
-      boxSizing: 'border-box', // Prevent background from bleeding outside frame
-      position: 'relative',
-      backgroundClip: 'padding-box',
-      lineHeight: '1.1',
-      minHeight: '28px'
+      alignItems: 'center'
   };
 
   return (
@@ -150,7 +144,7 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
           </div>
 
           <button onClick={handleAction} style={buttonStyle}>
-            {item.type === 'music' ? 'DOWNLOAD' : isModifier ? 'USE ITEM' : isEquipped && !isBody ? 'UNEQUIP' : 'EQUIP'}
+            {item.type === 'music' ? 'DOWNLOAD' : isModifier ? 'USE' : isEquipped && !isBody ? 'UNEQUIP' : 'EQUIP'}
           </button>
       </div>
     </div>
