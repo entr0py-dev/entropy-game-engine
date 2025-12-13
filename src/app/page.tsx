@@ -20,7 +20,7 @@ function GameEngineContent() {
     activeWindow,
     setActiveWindow,
     refreshGameState,
-    handlePongWin // <--- Ensure this is exposed in your Context
+    handlePongWin
   } = useGameState();
   const searchParams = useSearchParams();
   const creatingProfile = useRef(false);
@@ -46,16 +46,14 @@ function GameEngineContent() {
     if (side) setSidebarOpen(true);
   }, [searchParams, setActiveWindow]);
 
-  // --- FIX: HANDLE CLOSE / HOME STUDIO ---
+  // Handle Close
   const handleCloseApp = () => {
     setActiveWindow("none");
     setSidebarOpen(false);
     
     if (isEmbed) {
-        // Embedded in Framer: Send close signal
         if (window.parent) window.parent.postMessage("CLOSE_OVERLAY", "*");
     } else {
-        // Standalone / Localhost: Redirect to main site
         window.location.href = "https://www.entropyofficial.com";
     }
   };
@@ -71,10 +69,13 @@ function GameEngineContent() {
     }
   }
 
-  // Auth Redirect
+  // --- AUTH REDIRECT (DISABLED TO ALLOW GUEST/LOGOUT STATE) ---
+  // If we force this, logging out becomes impossible as it bounces back to login.
+  /*
   useEffect(() => {
     if (!isEmbed && !loading && !session) window.location.href = "/login";
   }, [loading, session, isEmbed]);
+  */
 
   useEffect(() => {
     async function ensureProfile() {
@@ -106,7 +107,7 @@ function GameEngineContent() {
     void ensureProfile();
   }, [loading, session, profile, refreshGameState]);
 
-  if (loading) return null;
+  if (loading) return <div className="w-full h-screen bg-[#008080] flex items-center justify-center text-white font-mono">LOADING SYSTEM...</div>;
 
   return (
     <div
@@ -136,8 +137,6 @@ function GameEngineContent() {
               {/* DEBUG BUTTONS */}
               <div style={{ position: "absolute", top: 12, left: 12, zIndex: 200, display: "flex", gap: "8px" }}>
                 <DebugButton label="+1000 XP" onClick={() => addDebugXp(1000)} />
-                
-                {/* DROP TESTS */}
                 <DebugButton label="Test Drop (Hard)" onClick={() => handlePongWin('hard')} />
                 <DebugButton label="Test Drop (Med)" onClick={() => handlePongWin('medium')} />
               </div>
