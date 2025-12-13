@@ -99,7 +99,7 @@ type GameState = {
   buyItem: (itemId: string) => Promise<{ success: boolean; message: string }>;
   equipItem: (item: Item) => Promise<void>;
   unequipItem: (slot: string) => Promise<void>;
-  useModifier: (itemId: string, itemType: string) => Promise<void>;
+  useModifier: (itemId: string, itemName: string) => Promise<void>;
   cosmeticSets: CosmeticSet[];
   claimedSets: string[];
   claimSetBonus: (setId: string) => Promise<void>;
@@ -196,45 +196,16 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
 
       const { data: rawInventory } = await supabase.from("user_items").select("*").eq("user_id", userId);
       
-      // --- FIXED STACKING LOGIC ---
+      // Attach item details; leave stacking to the Inventory page
       if (rawInventory && itemsData) {
-        const groupedMap = new Map<string, UserItem>();
-        
-        rawInventory.forEach((row) => {
-            const details = itemsData.find(i => i.id === row.item_id);
-            if (!details) return;
-            
-            // 1. ROBUST IDENTIFICATION
-            // Check both the Type AND the specific Name to ensure we catch the glitch
-            const type = details.type?.toLowerCase().trim() || '';
-            const name = details.name?.trim() || '';
-            const isStackable = type === 'modifier' || name === 'Duplication Glitch';
-
-            // 2. DETERMINE GROUPING KEY
-            // Stackable items group by their Definition ID (details.id)
-            // Unique items (Cosmetics) group by their Row ID (row.id)
-            const key = isStackable ? details.id : row.id;
-
-            if (groupedMap.has(key)) {
-                // Stack found: Create a NEW object with incremented count (Critical for React to see the update)
-                const existing = groupedMap.get(key)!;
-                const currentCount = existing.count || 1;
-                
-                groupedMap.set(key, { 
-                    ...existing, 
-                    count: currentCount + 1 
-                });
-            } else {
-                // New Item: Initialize stack at 1
-                groupedMap.set(key, { 
-                    ...row, 
-                    item_details: details, 
-                    count: 1 
-                });
-            }
-        });
-        
-        setInventory(Array.from(groupedMap.values()));
+        const joined = rawInventory
+          .map((row) => {
+            const details = itemsData.find((i) => i.id === row.item_id);
+            if (!details) return null;
+            return { ...row, item_details: details, count: 1 };
+          })
+          .filter(Boolean) as UserItem[];
+        setInventory(joined);
       } else {
         setInventory([]);
       }
@@ -415,18 +386,9 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         // 2. DECREMENT STACK (Immediate Visual)
         setInventory((prev) => {
             const copy = [...prev];
-            // Find the stack by Definition ID (itemId)
+            // Find first matching row (stacking handled in UI)
             const index = copy.findIndex(i => i.item_details?.id === itemId || i.item_id === itemId);
-            
-            if (index !== -1) {
-                const currentItem = copy[index];
-                const currentCount = currentItem.count || 1;
-                if (currentCount > 1) {
-                    copy[index] = { ...currentItem, count: currentCount - 1 };
-                } else {
-                    copy.splice(index, 1);
-                }
-            }
+            if (index !== -1) copy.splice(index, 1);
             return copy;
         });
 
