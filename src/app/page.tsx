@@ -20,10 +20,11 @@ function GameEngineContent() {
     activeWindow,
     setActiveWindow,
     refreshGameState,
+    handlePongWin // <--- IMPORT THIS
   } = useGameState();
-
   const searchParams = useSearchParams();
   const creatingProfile = useRef(false);
+  const hasTriedCreating = useRef(false);
 
   // --- STATE ---
   const isEmbed = searchParams.get("embed") === "true";
@@ -67,15 +68,18 @@ function GameEngineContent() {
     if (!isEmbed && !loading && !session) window.location.href = "/login";
   }, [loading, session, isEmbed]);
 
-  // Profile Auto-Create
   useEffect(() => {
     async function ensureProfile() {
-      if (loading || creatingProfile.current) return;
+      if (loading || creatingProfile.current || hasTriedCreating.current) return;
       if (!session?.user || profile) return;
+
       creatingProfile.current = true;
+      hasTriedCreating.current = true; 
+
       const rawName = session.user.email?.split("@")[0] || "operative";
       const safeName = rawName.replace(/[^a-zA-Z0-9_]/g, "");
-      await supabase.from("profiles").insert({
+      
+      const { error } = await supabase.from("profiles").insert({
         id: session.user.id,
         username: safeName,
         avatar: "default",
@@ -83,7 +87,12 @@ function GameEngineContent() {
         xp: 0,
         level: 1,
       });
-      await refreshGameState();
+
+      if (error) {
+          console.error("Profile creation failed (stopping retry loop):", error.message);
+      } else {
+          await refreshGameState();
+      }
       creatingProfile.current = false;
     }
     void ensureProfile();
@@ -97,9 +106,9 @@ function GameEngineContent() {
         position: "relative",
         width: "100vw",
         height: "100vh",
-        overflow: "hidden", // CRITICAL: Locks body scroll
+        overflow: "hidden", 
         backgroundColor: isEmbed ? "transparent" : "#008080",
-        overscrollBehavior: "none", // Stops "bounce" effect on Mac
+        overscrollBehavior: "none", 
       }}
     >
       <div style={{ display: "flex", width: "100%", height: "100%" }}>
@@ -111,7 +120,7 @@ function GameEngineContent() {
             position: "relative",
             marginRight: !isEmbed || sidebarOpen ? "320px" : "0",
             transition: "margin-right 0.3s ease",
-            overflow: "hidden", // Ensures no background scroll
+            overflow: "hidden", 
           }}
         >
           {!isEmbed && (
@@ -119,7 +128,8 @@ function GameEngineContent() {
               {/* DEBUG BUTTONS */}
               <div style={{ position: "absolute", top: 12, left: 12, zIndex: 200, display: "flex", gap: "8px" }}>
                 <DebugButton label="+1000 XP" onClick={() => addDebugXp(1000)} />
-                <DebugButton label="+10k XP" onClick={() => addDebugXp(10000)} />
+                {/* NEW TEST DROP BUTTON */}
+                <DebugButton label="Test Drop (Hard)" onClick={() => handlePongWin('hard')} />
               </div>
               <div style={{ position: "absolute", inset: 0, zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <div style={{ padding: "20px", backgroundColor: "#ff00ff", color: "white", border: "4px solid white", fontWeight: "bold" }}>
@@ -145,14 +155,13 @@ function GameEngineContent() {
               minWidth={600}
               minHeight={400}
               bounds="parent"
-              dragHandleClassName="retro-header" // Only drag via this class
-              enableUserSelectHack={false} // Smoother interaction inside window
+              dragHandleClassName="retro-header" 
+              enableUserSelectHack={false} 
               style={{ zIndex: 1000, pointerEvents: "auto" }}
             >
-              {/* STOP SCROLL PROPAGATION WRAPPER */}
               <div 
                 style={{ width: "100%", height: "100%" }}
-                onWheel={(e) => e.stopPropagation()} // The Magic Fix: Stops scroll from bubbling to body
+                onWheel={(e) => e.stopPropagation()} 
               >
                 {activeWindow === "inventory" && <InventoryPage isOverlay onClose={handleCloseApp} />}
                 {activeWindow === "shop" && <ShopPage isOverlay onClose={handleCloseApp} />}
