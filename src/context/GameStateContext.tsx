@@ -106,6 +106,7 @@ type GameState = {
   activeWindow: WindowType;
   setActiveWindow: (w: WindowType) => void;
   logTransaction: (type: string, amount: number, desc: string, itemName?: string) => Promise<void>;
+  handlePongWin: (difficulty: 'easy' | 'medium' | 'hard') => Promise<void>;
 };
 
 const GameStateContext = createContext<GameState | undefined>(undefined);
@@ -229,7 +230,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         }
     });
     return () => { authListener.subscription.unsubscribe(); };
-  }, []); // Keep empty dependency to prevent loops
+  }, []); 
 
   useEffect(() => {
     if (!profile || quests.length === 0 || loading) return;
@@ -347,14 +348,14 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
       } 
   }
 
-  // --- BUY ITEM (BLOCKS ALL DUPLICATES) ---
+  // --- BUY ITEM (Restricted: One of each) ---
   async function buyItem(itemId: string): Promise<{ success: boolean; message: string }> {
     if (!session?.user || !profile) return { success: false, message: "Not logged in" };
     const item = shopItems.find(i => i.id === itemId);
     if (!item) return { success: false, message: "Item not found" };
     if (profile.entrobucks < item.cost) return { success: false, message: "Insufficient Entrobucks" };
     
-    // RESTRICTION: Block duplicate purchases for EVERYTHING
+    // RESTRICTION: Block duplicate purchases for EVERYTHING (including modifiers)
     const alreadyOwns = inventory.some(i => i.item_id === itemId);
     if (alreadyOwns) return { success: false, message: "You already own this item" };
 
@@ -370,38 +371,19 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     return { success: true, message: `Purchased ${item.name}!` };
   }
 
-  // --- USE MODIFIER (REMOVES ITEM) ---
+  // --- USE MODIFIER (Consumes Item) ---
   async function useModifier(itemId: string, itemName: string) {
     if (!session?.user || !profile) return;
-
     if (itemName === 'Duplication Glitch') {
-        const expiry = new Date();
-        expiry.setMinutes(expiry.getMinutes() + 15);
-        
-        // 1. UPDATE TIMER
+        const expiry = new Date(); expiry.setMinutes(expiry.getMinutes() + 15);
         setProfile(prev => prev ? { ...prev, duplication_expires_at: expiry.toISOString() } : null);
         
-        // 2. REMOVE ITEM FROM INVENTORY (Optimistic)
-        setInventory((prev) => {
-            // Filter out the item with this ID
-            return prev.filter(i => i.item_id !== itemId);
-        });
+        // Optimistic Delete: Remove the item completely from local state
+        setInventory((prev) => prev.filter(i => i.item_id !== itemId));
 
-        // 3. SHOW TOAST
-        if (window.top) {
-            window.top.postMessage({
-                type: 'SHOW_TOAST',
-                payload: { message: "SYSTEM HACK: 2X ACTIVE", toastType: "info" }
-            }, '*');
-        }
-
-        // 4. SERVER SYNC
-        supabase.rpc('use_duplication_glitch', {
-            p_user_id: session.user.id,
-            p_item_id: itemId
-        }).then(({ error }) => {
-            if (error) console.error("RPC Error:", error);
-        });
+        if (window.top) window.top.postMessage({ type: 'SHOW_TOAST', payload: { message: "SYSTEM HACK: 2X ACTIVE", toastType: "info" } }, '*');
+        
+        supabase.rpc('use_duplication_glitch', { p_user_id: session.user.id, p_item_id: itemId }).then(({ error }) => { if (error) console.error("RPC Error:", error); });
     }
   }
 
@@ -466,6 +448,39 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // --- NEW: HANDLE PONG WIN (20% Drop Rate, 40% with Modifier) ---
+  async function handlePongWin(difficulty: 'easy' | 'medium' | 'hard') {
+      if (!session?.user || !profile) return;
+
+      // 1. Calculate Drop Chance
+      let dropChance = 0.2; // 20% Base
+      // Check for Active Modifier (Boost to 40%)
+      if (profile.duplication_expires_at && new Date(profile.duplication_expires_at) > new Date()) {
+          dropChance = 0.4;
+      }
+
+      // 2. RNG Check
+      if (Math.random() > dropChance) return; // No drop
+
+      // 3. Determine Item Reward
+      // Hard = Top Hat, Easy/Medium = Moustache
+      const targetItemName = difficulty === 'hard' ? '8balls top hat' : '8balls moustache';
+
+      // 4. Check Ownership (Unique Unlocks)
+      const owned = inventory.some(i => i.item_details?.name.toLowerCase() === targetItemName.toLowerCase());
+      if (owned) return;
+
+      // 5. Fetch & Grant
+      const { data: itemData } = await supabase.from('items').select('id, name').ilike('name', targetItemName).maybeSingle();
+      if (itemData) {
+          const { error } = await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: itemData.id });
+          if (!error) {
+              await loadGameState();
+              showToast(`UNLOCKED RARE ITEM: ${itemData.name}`, 'success', { itemName: itemData.name, profile });
+          }
+      }
+  }
+
   return (
     <GameStateContext.Provider
       value={{
@@ -473,7 +488,8 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         addEntrobucks, spendEntrobucks, quests, userQuests, startQuest, completeQuest, incrementQuest,
         shopItems, inventory, buyItem, equipItem, unequipItem,
         useModifier, cosmeticSets, claimedSets, claimSetBonus,
-        activeWindow, setActiveWindow, logTransaction
+        activeWindow, setActiveWindow, logTransaction,
+        handlePongWin
       }}
     >
       {children}
