@@ -205,8 +205,11 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             if (!details) return;
             
             // 1. ROBUST CHECK: Is this a modifier?
+            const lowerType = details.type?.toLowerCase().trim();
+            const lowerName = details.name?.toLowerCase() || '';
             const isDupeGlitch = details.name === 'Duplication Glitch';
-            const isModifier = details.type?.toLowerCase().trim() === 'modifier' || isDupeGlitch;
+            const isDie12 = lowerName.includes('12') && lowerName.includes('die');
+            const isModifier = lowerType === 'modifier' || isDupeGlitch || isDie12;
 
             // 2. GROUPING KEY
             const key = isModifier ? details.id : row.id;
@@ -377,8 +380,13 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     if (!item) return { success: false, message: "Item not found" };
     if (profile.entrobucks < item.cost) return { success: false, message: "Insufficient Entrobucks" };
     
+    const isModifier = (item.type?.toLowerCase() === "modifier") || item.name === "Duplication Glitch" || (item.name?.toLowerCase().includes("12") && item.name?.toLowerCase().includes("die"));
+    const ownedModifierCount = inventory.find(i => i.item_id === itemId)?.count || 0;
     const alreadyOwns = inventory.some(i => i.item_id === itemId);
-    if (alreadyOwns && item.type !== "modifier") return { success: false, message: "You already own this item" };
+    // Non-modifiers: single ownership
+    if (!isModifier && alreadyOwns) return { success: false, message: "You already own this item" };
+    // Modifiers: cap stacks at 5
+    if (isModifier && ownedModifierCount >= 5) return { success: false, message: "Stack limit reached (5)" };
 
     const paid = await spendEntrobucks(item.cost, `Purchased ${item.name}`);
     if (!paid) return { success: false, message: "Payment failed" };
