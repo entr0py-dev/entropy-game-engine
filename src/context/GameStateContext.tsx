@@ -1,11 +1,5 @@
 "use client";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/context/ToastContext";
@@ -197,7 +191,6 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
       const { data: rawInventory } = await supabase.from("user_items").select("*").eq("user_id", userId);
       
       // --- FIXED STACKING LOGIC ---
-      // We group items if they are Modifiers OR if their name is "Duplication Glitch"
       if (rawInventory && itemsData) {
         const groupedMap = new Map<string, UserItem>();
         
@@ -209,9 +202,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             const isDupeGlitch = details.name === 'Duplication Glitch';
             const isModifier = details.type?.toLowerCase().trim() === 'modifier' || isDupeGlitch;
 
-            // 2. GROUPING KEY
-            // Modifiers group by their Definition ID (details.id)
-            // Normal items group by their Unique Row ID (row.id)
+            // 2. GROUPING KEY: Modifiers use Def ID, Items use Row ID
             const key = isModifier ? details.id : row.id;
 
             if (groupedMap.has(key)) {
@@ -241,9 +232,9 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void loadGameState();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, newSession) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-            setSession(newSession); 
+            setSession(session); 
             void loadGameState(); 
         } else if (event === 'SIGNED_OUT') {
             setSession(null);
@@ -253,8 +244,9 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => { authListener.subscription.unsubscribe(); };
-  }, []); 
+  }, []); // <--- MUST BE EMPTY ARRAY.
 
+  // Check for Welcome/Level Quests
   useEffect(() => {
     if (!profile || quests.length === 0 || loading) return;
     const welcomeTitle = "Welcome to the ENTROVERSE";
@@ -408,7 +400,9 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         // 2. DECREMENT STACK (Immediate Visual)
         setInventory((prev) => {
             const copy = [...prev];
-            const index = copy.findIndex(i => i.item_id === itemId);
+            // Find the stack by Definition ID (itemId)
+            const index = copy.findIndex(i => i.item_details?.id === itemId || i.item_id === itemId);
+            
             if (index !== -1) {
                 const currentItem = copy[index];
                 const currentCount = currentItem.count || 1;
