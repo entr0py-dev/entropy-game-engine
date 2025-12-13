@@ -379,14 +379,23 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     const item = shopItems.find(i => i.id === itemId);
     if (!item) return { success: false, message: "Item not found" };
     if (profile.entrobucks < item.cost) return { success: false, message: "Insufficient Entrobucks" };
-    
-    const isModifier = (item.type?.toLowerCase() === "modifier") || item.name === "Duplication Glitch" || (item.name?.toLowerCase().includes("12") && item.name?.toLowerCase().includes("die"));
-    const ownedModifierCount = inventory.find(i => i.item_id === itemId)?.count || 0;
-    const alreadyOwns = inventory.some(i => i.item_id === itemId);
+
+    const lowerName = item.name?.toLowerCase() || "";
+    const isModifier = (item.type?.toLowerCase() === "modifier") || item.name === "Duplication Glitch" || (lowerName.includes("12") && lowerName.includes("die"));
+
+    // Always re-check counts on the server to avoid stale client state
+    const { count: existingCount } = await supabase
+        .from("user_items")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", session.user.id)
+        .eq("item_id", itemId);
+
+    const ownedCount = existingCount || 0;
+
     // Non-modifiers: single ownership
-    if (!isModifier && alreadyOwns) return { success: false, message: "You already own this item" };
+    if (!isModifier && ownedCount > 0) return { success: false, message: "You already own this item" };
     // Modifiers: cap stacks at 5
-    if (isModifier && ownedModifierCount >= 5) return { success: false, message: "Stack limit reached (5)" };
+    if (isModifier && ownedCount >= 5) return { success: false, message: "Stack limit reached (5)" };
 
     const paid = await spendEntrobucks(item.cost, `Purchased ${item.name}`);
     if (!paid) return { success: false, message: "Payment failed" };
