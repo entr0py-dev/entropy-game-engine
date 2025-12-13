@@ -108,7 +108,7 @@ export default function Sidebar({ startOpen = false, onCloseAll }: SidebarProps)
         );
     }
 
-    // 3. ZOMBIE ACCOUNT (Logged In, But No Profile) -> THE FIX
+    // 3. ZOMBIE ACCOUNT (Logged In, But No Profile)
     if (session && !profile) {
         return (
             <div className="retro-inset" style={{ padding: '20px', textAlign: 'center', backgroundColor: '#fef3c7', border: '2px solid #d97706', display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -154,12 +154,13 @@ export default function Sidebar({ startOpen = false, onCloseAll }: SidebarProps)
                     <span style={{ color: '#1e293b' }}>{profile!.entrobucks} EB</span>
                 </div>
                 
+                {/* XP BAR UPDATED TO USE 132 MULTIPLIER */}
                 <div style={{ width: '100%', height: '10px', background: '#d1d5db', border: '1px solid #9ca3af', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${Math.min(100, (profile!.xp / (profile!.level * 500)) * 100)}%`, background: 'linear-gradient(90deg, #1d4ed8, #7c3aed)', transition: 'width 0.5s ease' }} />
+                    <div style={{ height: '100%', width: `${Math.min(100, (profile!.xp / (profile!.level * 132)) * 100)}%`, background: 'linear-gradient(90deg, #1d4ed8, #7c3aed)', transition: 'width 0.5s ease' }} />
                 </div>
                 
                 <div style={{ width: '100%', textAlign: 'right', fontSize: '10px', marginTop: '4px' }}>
-                    {profile!.xp} / {profile!.level * 500} XP
+                    {profile!.xp} / {profile!.level * 132} XP
                 </div>
 
                 {profile!.duplication_expires_at && new Date(profile!.duplication_expires_at) > new Date() && (
