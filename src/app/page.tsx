@@ -20,7 +20,7 @@ function GameEngineContent() {
     activeWindow,
     setActiveWindow,
     refreshGameState,
-    handlePongWin // <--- IMPORT THIS
+    handlePongWin // <--- Ensure this is exposed in your Context
   } = useGameState();
   const searchParams = useSearchParams();
   const creatingProfile = useRef(false);
@@ -46,10 +46,18 @@ function GameEngineContent() {
     if (side) setSidebarOpen(true);
   }, [searchParams, setActiveWindow]);
 
+  // --- FIX: HANDLE CLOSE / HOME STUDIO ---
   const handleCloseApp = () => {
     setActiveWindow("none");
     setSidebarOpen(false);
-    if (window.parent) window.parent.postMessage("CLOSE_OVERLAY", "*");
+    
+    if (isEmbed) {
+        // Embedded in Framer: Send close signal
+        if (window.parent) window.parent.postMessage("CLOSE_OVERLAY", "*");
+    } else {
+        // Standalone / Localhost: Redirect to main site
+        window.location.href = "https://www.entropyofficial.com";
+    }
   };
 
   async function addDebugXp(amount: number) {
@@ -128,9 +136,12 @@ function GameEngineContent() {
               {/* DEBUG BUTTONS */}
               <div style={{ position: "absolute", top: 12, left: 12, zIndex: 200, display: "flex", gap: "8px" }}>
                 <DebugButton label="+1000 XP" onClick={() => addDebugXp(1000)} />
-                {/* NEW TEST DROP BUTTON */}
+                
+                {/* DROP TESTS */}
                 <DebugButton label="Test Drop (Hard)" onClick={() => handlePongWin('hard')} />
+                <DebugButton label="Test Drop (Med)" onClick={() => handlePongWin('medium')} />
               </div>
+              
               <div style={{ position: "absolute", inset: 0, zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <div style={{ padding: "20px", backgroundColor: "#ff00ff", color: "white", border: "4px solid white", fontWeight: "bold" }}>
                   HOME STUDIO PLACEHOLDER
