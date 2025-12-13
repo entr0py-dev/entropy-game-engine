@@ -29,10 +29,11 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
   const rarityColor = getRarityColor(item.rarity);
   const isEntropic = item.rarity === 'entropic';
   
-  // FIX: Explicitly check for duplication glitch & 12-sided die so they render/stack as modifiers
+  // FIX: Robust check for modifiers
   const lowerName = item.name.toLowerCase();
   const isModifier = item.type?.toLowerCase() === 'modifier' || item.name === 'Duplication Glitch' || (lowerName.includes('12') && lowerName.includes('die'));
-  const count = userItem.count || 1;
+  
+  const count = userItem.count && userItem.count > 0 ? userItem.count : 1;
   const isBody = item.slot === 'body';
 
   const handleAction = (e: React.MouseEvent) => {
@@ -81,21 +82,18 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
     return <span style={{ fontSize: '28px' }}>{item.image_url}</span>;
   };
 
-  // Tighter Button Style (Fixed Sizing)
+  // Dynamic Button Style
   const buttonStyle: React.CSSProperties = {
       backgroundColor: isModifier ? '#2563eb' : isEquipped ? '#fee2e2' : '#c0c0c0', 
       color: isModifier ? 'white' : isEquipped ? '#991b1b' : 'black',
       border: '1px solid #808080',
       boxShadow: '1px 1px 0 black',
-      fontSize: '8px', 
+      fontSize: '10px', 
       fontWeight: 'bold', 
-      padding: '4px 0', // Zero horizontal padding
+      padding: '4px', 
       cursor: 'pointer', 
       marginTop: 'auto',
       width: '100%', 
-      whiteSpace: 'nowrap',
-      overflow: 'hidden', 
-      textOverflow: 'ellipsis',
       display: 'flex', 
       justifyContent: 'center', 
       alignItems: 'center'
@@ -107,7 +105,6 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
         backgroundColor: isEquipped ? '#dcfce7' : '#e5e5e5', 
         border: isEquipped ? '2px solid #16a34a' : '1px solid white'
     }}>
-      {/* Rarity Header */}
       <div style={{ 
           backgroundColor: rarityColor, color: 'white', fontSize: '9px', fontWeight: 'bold', 
           padding: '2px 4px', textTransform: 'uppercase', textAlign: 'center', letterSpacing: '1px',
@@ -118,20 +115,20 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
 
       <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', flex: 1, gap: '6px' }}>
           
-          {/* Image Container with Stack Count Inside */}
           <div className="retro-inset" style={{ position: 'relative', backgroundColor: 'white', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {renderPreview()}
             
-            {/* FIXED STACK COUNT LOCATION */}
+            {/* STACK COUNT */}
             {count > 1 && (
                 <div style={{ 
-                    position: 'absolute', bottom: '2px', right: '2px', 
+                    position: 'absolute', bottom: '4px', right: '4px', 
                     backgroundColor: '#ef4444', color: 'white', 
-                    borderRadius: '4px', padding: '0 4px',
+                    borderRadius: '50%', width: '16px', height: '16px',
                     fontSize: '9px', fontWeight: 'bold', 
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
                     boxShadow: '1px 1px 0 rgba(0,0,0,0.5)', zIndex: 10 
                 }}>
-                    x{count}
+                    {count}
                 </div>
             )}
           </div>
