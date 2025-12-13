@@ -1,5 +1,11 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/context/ToastContext";
@@ -90,7 +96,7 @@ type GameState = {
   incrementQuest: (questTitle: string, amount?: number) => Promise<void>;
   shopItems: Item[];
   inventory: UserItem[];
-  buyItem: (itemId: string) => Promise<void>;
+  buyItem: (itemId: string) => Promise<{ success: boolean; message: string }>;
   equipItem: (item: Item) => Promise<void>;
   unequipItem: (slot: string) => Promise<void>;
   useModifier: (itemId: string, itemType: string) => Promise<void>;
@@ -199,13 +205,10 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             if (!details) return;
             
             // 1. ROBUST CHECK: Is this a modifier?
-            // We force it to be true if the name matches, ignoring DB type errors.
             const isDupeGlitch = details.name === 'Duplication Glitch';
             const isModifier = details.type?.toLowerCase().trim() === 'modifier' || isDupeGlitch;
 
             // 2. GROUPING KEY
-            // Modifiers group by their Definition ID (details.id)
-            // Normal items group by their Unique Row ID (row.id)
             const key = isModifier ? details.id : row.id;
 
             if (groupedMap.has(key)) {
@@ -231,11 +234,26 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
+  // --- CRITICAL FIX FOR SAFARI LOOP ---
   useEffect(() => {
+    // 1. Load initial state
     void loadGameState();
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, newSession) => { setSession(newSession); void loadGameState(); });
+
+    // 2. Set up listener securely
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, newSession) => {
+        // Only refresh for major auth events to prevent infinite loops
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+            setSession(newSession); 
+            void loadGameState(); 
+        } else if (event === 'SIGNED_OUT') {
+            setSession(null);
+            setProfile(null);
+            setInventory([]);
+        }
+    });
+
     return () => { authListener.subscription.unsubscribe(); };
-  }, [loadGameState]);
+  }, []); // <--- MUST BE EMPTY ARRAY. DO NOT PUT [loadGameState] HERE.
 
   useEffect(() => {
     if (!profile || quests.length === 0 || loading) return;
@@ -286,7 +304,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
   async function startQuest(questId: string) {
     if (!session?.user) return;
     const existing = userQuests.find((q) => q.quest_id === questId);
-    if (existing && existing.status === 'in_progress') return;
+    if (existing && existing.status === 'in_progress') return; 
     const { data, error } = await supabase.from("user_quests").insert({ user_id: session.user.id, quest_id: questId, status: "in_progress", progress: 0 }).select().single();
     if (!error && data) {
         setUserQuests((prev) => [...prev, data]);
@@ -353,24 +371,27 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
       } 
   }
 
-  async function buyItem(itemId: string) {
-    if (!session?.user || !profile) { showToast("Not logged in", "error"); return; }
+  async function buyItem(itemId: string): Promise<{ success: boolean; message: string }> {
+    if (!session?.user || !profile) return { success: false, message: "Not logged in" };
     const item = shopItems.find(i => i.id === itemId);
-    if (!item) { showToast("Item not found", "error"); return; }
-    if (profile.entrobucks < item.cost) { showToast("Insufficient Entrobucks", "error"); return; }
+    if (!item) return { success: false, message: "Item not found" };
+    if (profile.entrobucks < item.cost) return { success: false, message: "Insufficient Entrobucks" };
     
+    const alreadyOwns = inventory.some(i => i.item_id === itemId);
+    if (alreadyOwns && item.type !== "modifier") return { success: false, message: "You already own this item" };
+
     const paid = await spendEntrobucks(item.cost, `Purchased ${item.name}`);
-    if (!paid) { showToast("Payment failed", "error"); return; }
-    
-    const { error } = await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: itemId });
-    if (error) { showToast("Database Error", "error"); return; }
+    if (!paid) return { success: false, message: "Payment failed" };
+
+    const { data, error } = await supabase.from("user_items").insert({ user_id: session.user.id, item_id: itemId }).select().single();
+    if (error || !data) return { success: false, message: "Database error: " + error?.message };
+
     logTransaction('PURCHASE', -item.cost, `Bought Item`, item.name);
 
     await loadGameState();
-    showToast(`Purchased ${item.name}!`, "success");
+    return { success: true, message: `Purchased ${item.name}!` };
   }
 
-  // --- USE MODIFIER ---
   async function useModifier(itemId: string, itemName: string) {
     if (!session?.user || !profile) return;
 
@@ -378,33 +399,23 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         const expiry = new Date();
         expiry.setMinutes(expiry.getMinutes() + 15);
         
-        // 1. UPDATE TIMER (Immediate Visual)
         setProfile(prev => prev ? { ...prev, duplication_expires_at: expiry.toISOString() } : null);
         
-        // 2. DECREMENT STACK (Immediate Visual)
         setInventory((prev) => {
-            // Create a deep copy to ensure React notices the change
             const copy = [...prev];
-            
-            // Find the stack by Definition ID (itemId)
             const index = copy.findIndex(i => i.item_id === itemId);
-            
             if (index !== -1) {
                 const currentItem = copy[index];
                 const currentCount = currentItem.count || 1;
-
                 if (currentCount > 1) {
-                    // Reduce stack size by 1
                     copy[index] = { ...currentItem, count: currentCount - 1 };
                 } else {
-                    // Last one? Remove it entirely
                     copy.splice(index, 1);
                 }
             }
             return copy;
         });
 
-        // 3. SHOW TOAST
         if (window.top) {
             window.top.postMessage({
                 type: 'SHOW_TOAST',
@@ -412,9 +423,6 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             }, '*');
         }
 
-        // 4. SERVER SYNC (Background)
-        // We use the RPC to delete *one* instance from the DB.
-        // We DO NOT await loadGameState() here to prevent "snapping back" to old data.
         supabase.rpc('use_duplication_glitch', {
             p_user_id: session.user.id,
             p_item_id: itemId
@@ -423,6 +431,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         });
     }
   }
+
   async function equipItem(item: Item) {
     if (!session?.user || !profile) return;
     const updates: any = {};
@@ -441,7 +450,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     if (!session?.user || !profile) return;
     const updates: any = {};
     if (slot === "head") updates.equipped_head = null;
-    else if (slot === "face") updates.equipped_image = null;
+    else if (slot === "face") updates.equipped_image = null; 
     else if (slot === "badge") updates.equipped_badge = null;
     else if (slot === "body") updates.equipped_body = null;
     if (Object.keys(updates).length === 0) return;
