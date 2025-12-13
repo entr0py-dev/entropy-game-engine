@@ -196,7 +196,8 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
 
       const { data: rawInventory } = await supabase.from("user_items").select("*").eq("user_id", userId);
       
-    // --- FIXED STACKING LOGIC (Force Duplication Glitch to Group) ---
+      // --- FIXED STACKING LOGIC ---
+      // We group items if they are Modifiers OR if their name is "Duplication Glitch"
       if (rawInventory && itemsData) {
         const groupedMap = new Map<string, UserItem>();
         
@@ -205,13 +206,12 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             if (!details) return;
             
             // 1. ROBUST CHECK: Is this a modifier?
-            const lowerType = details.type?.toLowerCase().trim();
-            const lowerName = details.name?.toLowerCase() || '';
             const isDupeGlitch = details.name === 'Duplication Glitch';
-            const isDie12 = lowerName.includes('12') && lowerName.includes('die');
-            const isModifier = lowerType === 'modifier' || isDupeGlitch || isDie12;
+            const isModifier = details.type?.toLowerCase().trim() === 'modifier' || isDupeGlitch;
 
             // 2. GROUPING KEY
+            // Modifiers group by their Definition ID (details.id)
+            // Normal items group by their Unique Row ID (row.id)
             const key = isModifier ? details.id : row.id;
 
             if (groupedMap.has(key)) {
@@ -237,14 +237,11 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
-  // --- CRITICAL FIX FOR SAFARI LOOP ---
+  // --- STABLE AUTH LISTENER (Prevents Loop) ---
   useEffect(() => {
-    // 1. Load initial state
     void loadGameState();
 
-    // 2. Set up listener securely
     const { data: authListener } = supabase.auth.onAuthStateChange((event, newSession) => {
-        // Only refresh for major auth events to prevent infinite loops
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
             setSession(newSession); 
             void loadGameState(); 
@@ -256,7 +253,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => { authListener.subscription.unsubscribe(); };
-  }, []); // <--- MUST BE EMPTY ARRAY. DO NOT PUT [loadGameState] HERE.
+  }, []); 
 
   useEffect(() => {
     if (!profile || quests.length === 0 || loading) return;
@@ -379,23 +376,12 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     const item = shopItems.find(i => i.id === itemId);
     if (!item) return { success: false, message: "Item not found" };
     if (profile.entrobucks < item.cost) return { success: false, message: "Insufficient Entrobucks" };
-
-    const lowerName = item.name?.toLowerCase() || "";
-    const isModifier = (item.type?.toLowerCase() === "modifier") || item.name === "Duplication Glitch" || (lowerName.includes("12") && lowerName.includes("die"));
-
-    // Always re-check counts on the server to avoid stale client state
-    const { count: existingCount } = await supabase
-        .from("user_items")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", session.user.id)
-        .eq("item_id", itemId);
-
-    const ownedCount = existingCount || 0;
-
-    // Non-modifiers: single ownership
-    if (!isModifier && ownedCount > 0) return { success: false, message: "You already own this item" };
-    // Modifiers: cap stacks at 5
-    if (isModifier && ownedCount >= 5) return { success: false, message: "Stack limit reached (5)" };
+    
+    // FIX: Allow multiple purchases for modifiers!
+    const alreadyOwns = inventory.some(i => i.item_id === itemId);
+    const isModifier = item.type?.toLowerCase() === 'modifier' || item.name === 'Duplication Glitch';
+    
+    if (alreadyOwns && !isModifier) return { success: false, message: "You already own this item" };
 
     const paid = await spendEntrobucks(item.cost, `Purchased ${item.name}`);
     if (!paid) return { success: false, message: "Payment failed" };
@@ -416,8 +402,10 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         const expiry = new Date();
         expiry.setMinutes(expiry.getMinutes() + 15);
         
+        // 1. UPDATE TIMER (Immediate Visual)
         setProfile(prev => prev ? { ...prev, duplication_expires_at: expiry.toISOString() } : null);
         
+        // 2. DECREMENT STACK (Immediate Visual)
         setInventory((prev) => {
             const copy = [...prev];
             const index = copy.findIndex(i => i.item_id === itemId);
@@ -433,6 +421,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             return copy;
         });
 
+        // 3. SHOW TOAST
         if (window.top) {
             window.top.postMessage({
                 type: 'SHOW_TOAST',
@@ -440,6 +429,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             }, '*');
         }
 
+        // 4. SERVER SYNC
         supabase.rpc('use_duplication_glitch', {
             p_user_id: session.user.id,
             p_item_id: itemId
