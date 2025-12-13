@@ -30,8 +30,7 @@ export default function ShopPage({ isOverlay, onClose }: { isOverlay?: boolean, 
         {items.map((item) => {
             const lowerName = (item.name || '').toLowerCase();
             const isModifier = item.type === 'modifier' || item.name === 'Duplication Glitch' || (lowerName.includes('12') && lowerName.includes('die'));
-            const stack = inventory.find((i) => i.item_id === item.id);
-            const modCount = stack?.count || 0;
+            const modCount = isModifier ? inventory.filter((i) => i.item_id === item.id).length : 0;
             const limitReached = isModifier && modCount >= 5;
             const isOwned = (!isModifier && inventory.some((i) => i.item_id === item.id)) || limitReached;
             const canAfford = profile.entrobucks >= item.cost && !limitReached;
