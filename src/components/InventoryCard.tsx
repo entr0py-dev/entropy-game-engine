@@ -81,7 +81,7 @@ export default function InventoryCard({ userItem, isEquipped, onEquip, onUnequip
   };
 
   
-  // Tighter Button Style
+// Tighter Button Style (Fixed Sizing)
   const buttonStyle: React.CSSProperties = {
       backgroundColor: isModifier ? '#2563eb' : isEquipped ? '#fee2e2' : '#c0c0c0', 
       color: isModifier ? 'white' : isEquipped ? '#991b1b' : 'black',
