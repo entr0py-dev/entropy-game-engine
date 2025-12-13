@@ -201,7 +201,6 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
       const { data: rawInventory } = await supabase.from("user_items").select("*").eq("user_id", userId);
       
       // --- NO STACKING LOGIC (1-to-1 Mapping) ---
-      // This forces every item to be distinct, solving the "disappearing stack" issue.
       if (rawInventory && itemsData) {
         const simpleInventory = rawInventory.map((row) => {
             const details = itemsData.find(i => i.id === row.item_id);
@@ -232,7 +231,6 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     return () => { authListener.subscription.unsubscribe(); };
   }, []); 
 
-  // Helpers
   useEffect(() => {
     if (!profile || quests.length === 0 || loading) return;
     const welcomeTitle = "Welcome to the ENTROVERSE";
@@ -308,6 +306,8 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         logTransaction('QUEST_COMPLETE', 0, `Completed Quest: ${quest.title}`);
 
         let rewardItemName = undefined;
+
+        // 1. STANDARD DB REWARD
         if (quest.reward_item) {
              const { data: itemData } = await supabase.from("items").select("id, name").eq("name", quest.reward_item).maybeSingle();
              if (itemData) {
@@ -315,10 +315,29 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
                  rewardItemName = itemData.name;
              }
         }
+
+        // 2. SPECIAL: WELCOME QUEST
         if (quest.title === "Welcome to the ENTROVERSE") {
             const { data: blackTop } = await supabase.from("items").select("id").eq("name", "Default Black Top").maybeSingle();
             if (blackTop) await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: blackTop.id });
         }
+
+        // 3. SPECIAL: ENTROPIC EXPLORER (Level 20)
+        // Grants "Gold Top" AND "Entropic Explorer Badge"
+        if (quest.title === "ENTROPIC EXPLORER") {
+            // Reward 1: Gold Top
+            const { data: goldTop } = await supabase.from("items").select("id, name").eq("name", "Gold Top").maybeSingle();
+            if (goldTop) await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: goldTop.id });
+
+            // Reward 2: Explorer Badge
+            const { data: badge } = await supabase.from("items").select("id, name").eq("name", "Entropic Explorer Badge").maybeSingle();
+            if (badge) await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: badge.id });
+
+            // Update toast message to reflect double reward
+            rewardItemName = "Gold Top & Explorer Badge";
+        }
+
+        // REFRESH INVENTORY
         const { data: newInv } = await supabase.from("user_items").select("*, item_details:items(*)").eq("user_id", session.user.id);
         if (newInv) setInventory(newInv as any);
 
@@ -349,14 +368,13 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
       } 
   }
 
-  // --- BUY ITEM (Restricted: One of each) ---
   async function buyItem(itemId: string): Promise<{ success: boolean; message: string }> {
     if (!session?.user || !profile) return { success: false, message: "Not logged in" };
     const item = shopItems.find(i => i.id === itemId);
     if (!item) return { success: false, message: "Item not found" };
     if (profile.entrobucks < item.cost) return { success: false, message: "Insufficient Entrobucks" };
     
-    // RESTRICTION: Block duplicate purchases for EVERYTHING (including modifiers)
+    // RESTRICTION: Block duplicate purchases for EVERYTHING
     const alreadyOwns = inventory.some(i => i.item_id === itemId);
     if (alreadyOwns) return { success: false, message: "You already own this item" };
 
@@ -372,16 +390,15 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     return { success: true, message: `Purchased ${item.name}!` };
   }
 
-  // --- USE MODIFIER (Consumes Item) ---
   async function useModifier(itemId: string, itemName: string) {
     if (!session?.user || !profile) return;
     
-    // Checks for "Duplication Glitch" or "12 Sided Die" or any generic modifier containing "die"
+    // Check for Duplication Glitch OR 12 Sided Die
     if (itemName === 'Duplication Glitch' || itemName === '12 Sided Die' || itemName.toLowerCase().includes('die')) {
         const expiry = new Date(); expiry.setMinutes(expiry.getMinutes() + 15);
         setProfile(prev => prev ? { ...prev, duplication_expires_at: expiry.toISOString() } : null);
         
-        // Optimistic Delete: Remove the item completely from local state
+        // Optimistic Delete
         setInventory((prev) => prev.filter(i => i.item_id !== itemId));
 
         if (window.top) window.top.postMessage({ type: 'SHOW_TOAST', payload: { message: "SYSTEM HACK: 2X ACTIVE", toastType: "info" } }, '*');
@@ -390,31 +407,28 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // --- NEW: HANDLE PONG WIN REWARDS ---
+  // --- HANDLE PONG WIN ---
   async function handlePongWin(difficulty: 'easy' | 'medium' | 'hard') {
       if (!session?.user || !profile) return;
 
-      // 1. Calculate Drop Chance
-      let dropChance = 0.2; // 20% Base
-      // Check for Active Modifier (Boost to 40%)
+      // 1. Drop Chance
+      let dropChance = 0.2; 
       if (profile.duplication_expires_at && new Date(profile.duplication_expires_at) > new Date()) {
           dropChance = 0.4;
       }
 
       console.log(`Rolling for drop... Chance: ${dropChance}`); 
 
-      // 2. RNG Check
-      if (Math.random() > dropChance) return; // No drop
+      if (Math.random() > dropChance) return; 
 
-      // 3. Determine Item Reward
-      // Hard = Top Hat, Easy/Medium = Moustache
+      // 2. Select Item
       const targetItemName = difficulty === 'hard' ? '8balls top hat' : '8balls moustache';
-
-      // 4. Check Ownership (Unique Unlocks)
+      
+      // 3. Check Ownership
       const owned = inventory.some(i => i.item_details?.name.toLowerCase() === targetItemName.toLowerCase());
       if (owned) return;
 
-      // 5. Fetch & Grant
+      // 4. Grant
       const { data: itemData } = await supabase.from('items').select('id, name').ilike('name', targetItemName).maybeSingle();
       if (itemData) {
           const { error } = await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: itemData.id });
