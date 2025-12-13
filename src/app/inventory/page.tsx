@@ -24,6 +24,9 @@ export default function InventoryPage({ isOverlay, onClose }: { isOverlay?: bool
     if (activeTab === 'all' || activeTab === 'sets') return true;
     // FIX: Case-insensitive check ensures Modifiers show up in the right tab
     const type = inv.item_details?.type?.toLowerCase() || 'cosmetic';
+    const name = (inv.item_details?.name || '').toLowerCase();
+    const isModifier = type === 'modifier' || inv.item_details?.name === 'Duplication Glitch' || (name.includes('12') && name.includes('die'));
+    if (activeTab === 'modifier') return isModifier;
     return type === activeTab;
   }).sort((a, b) => {
       const itemA = a.item_details;
