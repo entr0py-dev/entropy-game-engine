@@ -1,5 +1,11 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/context/ToastContext";
@@ -202,12 +208,15 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
             const isDupeGlitch = details.name === 'Duplication Glitch';
             const isModifier = details.type?.toLowerCase().trim() === 'modifier' || isDupeGlitch;
 
-            // 2. GROUPING KEY: Modifiers use Def ID, Items use Row ID
+            // 2. GROUPING KEY
+            // Modifiers group by their Definition ID (details.id)
+            // Normal items group by their Unique Row ID (row.id)
             const key = isModifier ? details.id : row.id;
 
             if (groupedMap.has(key)) {
                 // Stack found -> Increment count
                 const existing = groupedMap.get(key)!;
+                // Ensure count is number
                 const currentCount = existing.count || 1;
                 existing.count = currentCount + 1;
                 groupedMap.set(key, existing);
@@ -228,13 +237,13 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
-  // --- STABLE AUTH LISTENER (Prevents Loop) ---
+  // --- STABLE AUTH LISTENER ---
   useEffect(() => {
     void loadGameState();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, newSession) => {
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-            setSession(session); 
+            setSession(newSession); 
             void loadGameState(); 
         } else if (event === 'SIGNED_OUT') {
             setSession(null);
@@ -244,9 +253,8 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => { authListener.subscription.unsubscribe(); };
-  }, []); // <--- MUST BE EMPTY ARRAY.
+  }, []);
 
-  // Check for Welcome/Level Quests
   useEffect(() => {
     if (!profile || quests.length === 0 || loading) return;
     const welcomeTitle = "Welcome to the ENTROVERSE";
