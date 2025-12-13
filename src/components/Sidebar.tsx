@@ -156,11 +156,11 @@ export default function Sidebar({ startOpen = false, onCloseAll }: SidebarProps)
                 
                 {/* XP BAR UPDATED TO USE 132 MULTIPLIER */}
                 <div style={{ width: '100%', height: '10px', background: '#d1d5db', border: '1px solid #9ca3af', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${Math.min(100, (profile!.xp / (profile!.level * 132)) * 100)}%`, background: 'linear-gradient(90deg, #1d4ed8, #7c3aed)', transition: 'width 0.5s ease' }} />
+                    <div style={{ height: '100%', width: `${Math.min(100, (profile!.xp / (profile!.level * 263)) * 100)}%`, background: 'linear-gradient(90deg, #1d4ed8, #7c3aed)', transition: 'width 0.5s ease' }} />
                 </div>
                 
                 <div style={{ width: '100%', textAlign: 'right', fontSize: '10px', marginTop: '4px' }}>
-                    {profile!.xp} / {profile!.level * 132} XP
+                    {profile!.xp} / {profile!.level * 263} XP
                 </div>
 
                 {profile!.duplication_expires_at && new Date(profile!.duplication_expires_at) > new Date() && (
