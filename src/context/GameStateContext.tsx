@@ -138,6 +138,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     });
   }
 
+  // --- LOAD GAME STATE ---
   const loadGameState = useCallback(async () => {
     setLoading(true);
     const { data: sessionData } = await supabase.auth.getSession();
@@ -200,6 +201,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
 
       const { data: rawInventory } = await supabase.from("user_items").select("*").eq("user_id", userId);
       
+      // --- NO STACKING LOGIC (1-to-1 Mapping) ---
       if (rawInventory && itemsData) {
         const simpleInventory = rawInventory.map((row) => {
             const details = itemsData.find(i => i.id === row.item_id);
@@ -230,6 +232,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     return () => { authListener.subscription.unsubscribe(); };
   }, []); 
 
+  // --- QUEST CHECKS ---
   useEffect(() => {
     if (!profile || quests.length === 0 || loading) return;
     const welcomeTitle = "Welcome to the ENTROVERSE";
@@ -258,6 +261,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     checkLevelQuest('ENTROPIC EXPLORER', 20);
   }, [profile?.level, quests, userQuests, loading]);
   
+  // --- ACTIONS ---
   async function addEntrobucks(amount: number, source = 'system') {
     if (!session?.user || !profile) return;
     const newAmount = profile.entrobucks + amount;
@@ -296,7 +300,6 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     const quest = quests.find((q) => q.id === questId); 
     if (!quest) return; 
     
-    // --- DB UPDATE: Mark Quest as Complete ---
     const { data, error } = await supabase.from("user_quests").upsert({ 
         user_id: session.user.id, quest_id: questId, status: "completed", progress: 100, id: existingLocal?.id 
     }, { onConflict: "user_id,quest_id" }).select().single();
@@ -307,9 +310,17 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
 
         let rewardItemName = undefined;
 
-        // 1. STANDARD DB REWARD (If DB has reward_item set)
+        // 1. STANDARD DB REWARD (Handles Name OR UUID)
         if (quest.reward_item) {
-             const { data: itemData } = await supabase.from("items").select("id, name").eq("name", quest.reward_item).maybeSingle();
+             const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(quest.reward_item);
+             let query = supabase.from("items").select("id, name");
+             if (isUUID) {
+                 query = query.eq("id", quest.reward_item);
+             } else {
+                 query = query.eq("name", quest.reward_item);
+             }
+             const { data: itemData } = await query.maybeSingle();
+             
              if (itemData) {
                  await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: itemData.id });
                  rewardItemName = itemData.name;
@@ -334,33 +345,23 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         }
 
         // 4. SPECIAL: FILEPATH//.CORRUPTED (Grant Distorted Amulet)
-        // Using "includes" to be safe against punctuation mismatches in DB title
+        // Uses "includes" to be safe against punctuation
         if (quest.title.toUpperCase().includes("CORRUPTED")) {
-            console.log("QUEST TRIGGERED: CORRUPTED FILEPATH"); // Debugging
-            
+            console.log("QUEST TRIGGERED: CORRUPTED FILEPATH"); 
             const { data: amulet } = await supabase.from("items").select("id, name").eq("name", "Distorted Amulet").maybeSingle();
-            
             if (amulet) {
-                const { error: dropErr } = await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: amulet.id });
-                if (!dropErr) {
-                    rewardItemName = amulet.name;
-                    console.log("REWARD GRANTED: " + amulet.name); // Debugging
-                } else {
-                    console.error("Reward Error:", dropErr);
-                }
-            } else {
-                console.error("ITEM NOT FOUND: Distorted Amulet");
+                await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: amulet.id });
+                rewardItemName = amulet.name;
+                console.log("REWARD GRANTED: " + amulet.name);
             }
         }
 
-        // REFRESH INVENTORY to ensure new item shows up
+        // Refresh Inventory
         const { data: newInv } = await supabase.from("user_items").select("*, item_details:items(*)").eq("user_id", session.user.id);
         if (newInv) setInventory(newInv as any);
 
-        // TRIGGER TOAST
         showToast(quest.title, 'quest', { xp: quest.reward_xp, entrobucks: quest.reward_entrobucks, itemName: rewardItemName, profile: profile });
 
-        // GRANT CURRENCY REWARDS
         if (quest.reward_entrobucks > 0) await addEntrobucks(quest.reward_entrobucks, `Quest Reward: ${quest.title}`);
         if (quest.reward_xp > 0) { 
             const { error: xpError } = await supabase.rpc("add_xp", { user_id: session.user.id, amount: quest.reward_xp });
@@ -392,7 +393,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     if (!item) return { success: false, message: "Item not found" };
     if (profile.entrobucks < item.cost) return { success: false, message: "Insufficient Entrobucks" };
     
-    // RESTRICTION: Block duplicate purchases for EVERYTHING
+    // RESTRICTION: Block duplicate purchases
     const alreadyOwns = inventory.some(i => i.item_id === itemId);
     if (alreadyOwns) return { success: false, message: "You already own this item" };
 
@@ -411,7 +412,6 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
   async function useModifier(itemId: string, itemName: string) {
     if (!session?.user || !profile) return;
     
-    // Check for Duplication Glitch OR 12 Sided Die
     if (itemName === 'Duplication Glitch' || itemName === '12 Sided Die' || itemName.toLowerCase().includes('die')) {
         const expiry = new Date(); expiry.setMinutes(expiry.getMinutes() + 15);
         setProfile(prev => prev ? { ...prev, duplication_expires_at: expiry.toISOString() } : null);
@@ -429,7 +429,6 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
   async function handlePongWin(difficulty: 'easy' | 'medium' | 'hard') {
       if (!session?.user || !profile) return;
 
-      // 1. Drop Chance
       let dropChance = 0.2; 
       if (profile.duplication_expires_at && new Date(profile.duplication_expires_at) > new Date()) {
           dropChance = 0.4;
@@ -439,14 +438,11 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
 
       if (Math.random() > dropChance) return; 
 
-      // 2. Select Item
       const targetItemName = difficulty === 'hard' ? '8balls top hat' : '8balls moustache';
       
-      // 3. Check Ownership
       const owned = inventory.some(i => i.item_details?.name.toLowerCase() === targetItemName.toLowerCase());
       if (owned) return;
 
-      // 4. Grant
       const { data: itemData } = await supabase.from('items').select('id, name').ilike('name', targetItemName).maybeSingle();
       if (itemData) {
           const { error } = await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: itemData.id });
