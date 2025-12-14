@@ -316,25 +316,30 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
              }
         }
 
-        // 2. SPECIAL: WELCOME QUEST
+        // 2. SPECIAL: WELCOME
         if (quest.title === "Welcome to the ENTROVERSE") {
             const { data: blackTop } = await supabase.from("items").select("id").eq("name", "Default Black Top").maybeSingle();
             if (blackTop) await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: blackTop.id });
         }
 
-        // 3. SPECIAL: ENTROPIC EXPLORER (Level 20)
-        // Grants "Gold Top" AND "Entropic Explorer Badge"
+        // 3. SPECIAL: EXPLORER (Level 20)
         if (quest.title === "ENTROPIC EXPLORER") {
-            // Reward 1: Gold Top
             const { data: goldTop } = await supabase.from("items").select("id, name").eq("name", "Gold Top").maybeSingle();
             if (goldTop) await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: goldTop.id });
 
-            // Reward 2: Explorer Badge
             const { data: badge } = await supabase.from("items").select("id, name").eq("name", "Entropic Explorer Badge").maybeSingle();
             if (badge) await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: badge.id });
 
-            // Update toast message to reflect double reward
             rewardItemName = "Gold Top & Explorer Badge";
+        }
+
+        // 4. SPECIAL: FILEPATH//.CORRUPTED (Grant Distorted Amulet)
+        if (quest.title === "FILEPATH//.CORRUPTED") {
+            const { data: amulet } = await supabase.from("items").select("id, name").eq("name", "Distorted Amulet").maybeSingle();
+            if (amulet) {
+                await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: amulet.id });
+                rewardItemName = amulet.name;
+            }
         }
 
         // REFRESH INVENTORY
@@ -393,12 +398,10 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
   async function useModifier(itemId: string, itemName: string) {
     if (!session?.user || !profile) return;
     
-    // Check for Duplication Glitch OR 12 Sided Die
     if (itemName === 'Duplication Glitch' || itemName === '12 Sided Die' || itemName.toLowerCase().includes('die')) {
         const expiry = new Date(); expiry.setMinutes(expiry.getMinutes() + 15);
         setProfile(prev => prev ? { ...prev, duplication_expires_at: expiry.toISOString() } : null);
         
-        // Optimistic Delete
         setInventory((prev) => prev.filter(i => i.item_id !== itemId));
 
         if (window.top) window.top.postMessage({ type: 'SHOW_TOAST', payload: { message: "SYSTEM HACK: 2X ACTIVE", toastType: "info" } }, '*');
