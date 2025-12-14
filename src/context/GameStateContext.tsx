@@ -138,6 +138,7 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     });
   }
 
+  // --- LOAD GAME STATE ---
   const loadGameState = useCallback(async () => {
     setLoading(true);
     const { data: sessionData } = await supabase.auth.getSession();
@@ -231,32 +232,85 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     return () => { authListener.subscription.unsubscribe(); };
   }, []); 
 
-  // --- AUTOMATED QUEST COMPLETION CHECKS ---
-  useEffect(() => { if (!profile || quests.length === 0 || loading) return; const welcomeQuest = quests.find(q => q.title === "Welcome to the ENTROVERSE"); if (welcomeQuest) { const isDone = userQuests.some(uq => uq.quest_id === welcomeQuest.id && uq.status === 'completed'); if (!isDone) completeQuest(welcomeQuest.id); } }, [profile, quests, userQuests, loading]);
-  useEffect(() => { if (loading || !profile || quests.length === 0) return; const checkLevelQuest = async (questTitle: string, levelReq: number) => { if (profile.level >= levelReq) { const quest = quests.find(q => q.title.toLowerCase() === questTitle.toLowerCase()); if (!quest) return; const isDone = userQuests.some(uq => uq.quest_id === quest.id && uq.status === 'completed'); if (!isDone) await completeQuest(quest.id); } }; checkLevelQuest('ENTROPIC NOVICE', 5); checkLevelQuest('ENTROPIC INITIATE', 10); checkLevelQuest('ENTROPIC ADEPT', 15); checkLevelQuest('ENTROPIC EXPLORER', 20); }, [profile?.level, quests, userQuests, loading]);
+  // --- ACTIONS ---
+  async function addEntrobucks(amount: number, source = 'system') { 
+    if (!session?.user || !profile) return; 
+    const newAmount = profile.entrobucks + amount; 
+    setProfile({ ...profile, entrobucks: newAmount }); 
+    await supabase.from("profiles").update({ entrobucks: newAmount }).eq("id", profile.id); 
+    logTransaction('EARN', amount, `Received from ${source}`); 
+  }
   
-  // --- MISSING REWARD VERIFIER (SAFETY NET) ---
+  async function spendEntrobucks(amount: number, reason = 'purchase'): Promise<boolean> { 
+      if (!session?.user || !profile) return false; 
+      if (profile.entrobucks < amount) return false; 
+      const newAmount = profile.entrobucks - amount; 
+      setProfile({ ...profile, entrobucks: newAmount }); 
+      await supabase.from("profiles").update({ entrobucks: newAmount }).eq("id", profile.id); 
+      logTransaction('SPEND', -amount, `Spent on ${reason}`); 
+      return true; 
+  }
+
+  // --- AUTOMATED QUEST CHECKS ---
+  useEffect(() => { 
+    if (!profile || quests.length === 0 || loading) return; 
+    const welcomeQuest = quests.find(q => q.title === "Welcome to the ENTROVERSE"); 
+    if (welcomeQuest) { 
+      const isDone = userQuests.some(uq => uq.quest_id === welcomeQuest.id && uq.status === 'completed'); 
+      if (!isDone) completeQuest(welcomeQuest.id); 
+    } 
+  }, [profile, quests, userQuests, loading]);
+
+  useEffect(() => { 
+    if (loading || !profile || quests.length === 0) return; 
+    const checkLevelQuest = async (questTitle: string, levelReq: number) => { 
+      if (profile.level >= levelReq) { 
+        const quest = quests.find(q => q.title.toLowerCase() === questTitle.toLowerCase()); 
+        if (!quest) return; 
+        const isDone = userQuests.some(uq => uq.quest_id === quest.id && uq.status === 'completed'); 
+        if (!isDone) await completeQuest(quest.id); 
+      } 
+    }; 
+    checkLevelQuest('ENTROPIC NOVICE', 5); 
+    checkLevelQuest('ENTROPIC INITIATE', 10); 
+    checkLevelQuest('ENTROPIC ADEPT', 15); 
+    checkLevelQuest('ENTROPIC EXPLORER', 20); 
+  }, [profile?.level, quests, userQuests, loading]);
+  
+  // --- MISSING REWARD VERIFIER (Self-Healing) ---
   useEffect(() => {
       const verifyRewards = async () => {
           if (!session?.user || loading || userQuests.length === 0) return;
 
-          // 1. CHECK FILEPATH//.CORRUPTED -> Distorted Amulet
+          // 1. REPAIR FILEPATH//.CORRUPTED (Rewards: 350 EB, 700 XP, Distorted Amulet)
           const corruptQuest = quests.find(q => q.title.toUpperCase().includes("CORRUPTED"));
           if (corruptQuest) {
               const isDone = userQuests.some(uq => uq.quest_id === corruptQuest.id && uq.status === 'completed');
               const hasItem = inventory.some(i => i.item_details?.name === "Distorted Amulet");
               
               if (isDone && !hasItem) {
-                  console.log("FIXING MISSING REWARD: Distorted Amulet");
+                  console.log("FIXING MISSING REWARDS: FILEPATH//.CORRUPTED");
+                  
+                  // A. Grant Item
                   const { data: item } = await supabase.from("items").select("id").eq("name", "Distorted Amulet").maybeSingle();
-                  if (item) {
-                      await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: item.id });
-                      await loadGameState(); // Refresh
-                  }
+                  if (item) await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: item.id });
+
+                  // B. Grant Currency (Since it completed silently)
+                  await addEntrobucks(350, "Quest Fix: CORRUPTED");
+                  await supabase.rpc('add_xp', { user_id: session.user.id, amount: 700 });
+
+                  // C. Refresh & Toast
+                  await loadGameState();
+                  showToast("FILEPATH//.CORRUPTED", 'quest', { 
+                      xp: 700, 
+                      entrobucks: 350, 
+                      itemName: "Distorted Amulet", 
+                      profile: profile 
+                  });
               }
           }
 
-          // 2. CHECK ENTROPIC EXPLORER -> Gold Top / Badge
+          // 2. REPAIR ENTROPIC EXPLORER (Rewards: Gold Top, Badge)
           const explorerQuest = quests.find(q => q.title === "ENTROPIC EXPLORER");
           if (explorerQuest) {
               const isDone = userQuests.some(uq => uq.quest_id === explorerQuest.id && uq.status === 'completed');
@@ -277,18 +331,6 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
       
       verifyRewards();
   }, [loading, userQuests, inventory, session]);
-
-  async function addEntrobucks(amount: number, source = 'system') { if (!session?.user || !profile) return; const newAmount = profile.entrobucks + amount; setProfile({ ...profile, entrobucks: newAmount }); await supabase.from("profiles").update({ entrobucks: newAmount }).eq("id", profile.id); logTransaction('EARN', amount, `Received from ${source}`); }
-  
-  async function spendEntrobucks(amount: number, reason = 'purchase'): Promise<boolean> { 
-      if (!session?.user || !profile) return false; 
-      if (profile.entrobucks < amount) return false; 
-      const newAmount = profile.entrobucks - amount; 
-      setProfile({ ...profile, entrobucks: newAmount }); 
-      await supabase.from("profiles").update({ entrobucks: newAmount }).eq("id", profile.id); 
-      logTransaction('SPEND', -amount, `Spent on ${reason}`); 
-      return true; 
-  }
 
   async function startQuest(questId: string) { 
       if (!session?.user) return; 
@@ -418,52 +460,68 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
     if (itemName === 'Duplication Glitch' || itemName === '12 Sided Die' || itemName.toLowerCase().includes('die')) {
         const expiry = new Date(); expiry.setMinutes(expiry.getMinutes() + 15);
         setProfile(prev => prev ? { ...prev, duplication_expires_at: expiry.toISOString() } : null);
+        
+        // Optimistic Delete
         setInventory((prev) => prev.filter(i => i.item_id !== itemId));
+
         if (window.top) window.top.postMessage({ type: 'SHOW_TOAST', payload: { message: "SYSTEM HACK: 2X ACTIVE", toastType: "info" } }, '*');
+        
         supabase.rpc('use_duplication_glitch', { p_user_id: session.user.id, p_item_id: itemId }).then(({ error }) => { if (error) console.error("RPC Error:", error); });
     }
   }
 
   async function handlePongWin(difficulty: 'easy' | 'medium' | 'hard') {
       if (!session?.user || !profile) return;
+
       let dropChance = 0.2; 
-      if (profile.duplication_expires_at && new Date(profile.duplication_expires_at) > new Date()) { dropChance = 0.4; }
+      if (profile.duplication_expires_at && new Date(profile.duplication_expires_at) > new Date()) {
+          dropChance = 0.4;
+      }
+
       console.log(`Rolling for drop... Chance: ${dropChance}`); 
+
       if (Math.random() > dropChance) return; 
+
       const targetItemName = difficulty === 'hard' ? '8balls top hat' : '8balls moustache';
+      
       const owned = inventory.some(i => i.item_details?.name.toLowerCase() === targetItemName.toLowerCase());
       if (owned) return;
+
       const { data: itemData } = await supabase.from('items').select('id, name').ilike('name', targetItemName).maybeSingle();
       if (itemData) {
           const { error } = await supabase.rpc('add_item', { p_user_id: session.user.id, p_item_id: itemData.id });
-          if (!error) { await loadGameState(); showToast(`UNLOCKED RARE ITEM: ${itemData.name}`, 'success', { itemName: itemData.name, profile }); }
+          if (!error) {
+              await loadGameState();
+              showToast(`UNLOCKED RARE ITEM: ${itemData.name}`, 'success', { itemName: itemData.name, profile });
+          }
       }
   }
 
-  async function equipItem(item: Item) { 
-      if (!session?.user || !profile) return;
-      const updates: any = {};
-      const slot = item.slot || 'face';
-      if (slot === 'badge') updates.equipped_badge = item.name; 
-      else if (slot === 'head') updates.equipped_head = item.name;
-      else if (slot === 'body') updates.equipped_body = item.name;
-      else { updates.equipped_image = item.name; updates.equipped_face = item.name; }
-      setProfile({ ...profile, ...updates });
-      await supabase.from("profiles").update(updates).eq("id", profile.id);
-      showToast(`Equipped ${item.name}`, "info");
+  async function equipItem(item: Item) {
+    if (!session?.user || !profile) return;
+    const updates: any = {};
+    const slot = item.slot || 'face';
+    if (slot === 'badge') updates.equipped_badge = item.name; 
+    else if (slot === 'head') updates.equipped_head = item.name;
+    else if (slot === 'body') updates.equipped_body = item.name;
+    else { updates.equipped_image = item.name; updates.equipped_face = item.name; }
+
+    setProfile({ ...profile, ...updates });
+    await supabase.from("profiles").update(updates).eq("id", profile.id);
+    showToast(`Equipped ${item.name}`, "info");
   }
 
-  async function unequipItem(slot: string) { 
-      if (!session?.user || !profile) return;
-      const updates: any = {};
-      if (slot === "head") updates.equipped_head = null;
-      else if (slot === "face") updates.equipped_image = null; 
-      else if (slot === "badge") updates.equipped_badge = null;
-      else if (slot === "body") updates.equipped_body = null;
-      if (Object.keys(updates).length === 0) return;
-      setProfile({ ...profile, ...updates });
-      await supabase.from("profiles").update(updates).eq("id", profile.id);
-      showToast(`Unequipped item`, "info");
+  async function unequipItem(slot: string) {
+    if (!session?.user || !profile) return;
+    const updates: any = {};
+    if (slot === "head") updates.equipped_head = null;
+    else if (slot === "face") updates.equipped_image = null; 
+    else if (slot === "badge") updates.equipped_badge = null;
+    else if (slot === "body") updates.equipped_body = null;
+    if (Object.keys(updates).length === 0) return;
+    setProfile({ ...profile, ...updates });
+    await supabase.from("profiles").update(updates).eq("id", profile.id);
+    showToast(`Unequipped item`, "info");
   }
 
   async function claimSetBonus(setId: string) {
@@ -480,9 +538,18 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
         showToast("You don't have all items in this set!", "error");
         return;
     }
-    const { error: claimError } = await supabase.from("user_set_claims").insert({ user_id: session.user.id, set_id: setId });
-    if (claimError) { showToast("Error claiming set", "error"); return; }
-    const { error: xpError } = await supabase.rpc("add_xp", { user_id: session.user.id, amount: set.xp_reward });
+    const { error: claimError } = await supabase.from("user_set_claims").insert({
+        user_id: session.user.id,
+        set_id: setId
+    });
+    if (claimError) {
+        showToast("Error claiming set", "error");
+        return;
+    }
+    const { error: xpError } = await supabase.rpc("add_xp", { 
+        user_id: session.user.id, 
+        amount: set.xp_reward 
+    });
     if (!xpError) {
         setClaimedSets(prev => [...prev, setId]);
         setProfile({ ...profile, xp: (profile.xp || 0) + set.xp_reward }); 
@@ -492,10 +559,23 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <GameStateContext.Provider value={{ session, profile, loading, refreshGameState: loadGameState, addEntrobucks, spendEntrobucks, quests, userQuests, startQuest, completeQuest, incrementQuest, shopItems, inventory, buyItem, equipItem, unequipItem, useModifier, cosmeticSets, claimedSets, claimSetBonus, activeWindow, setActiveWindow, logTransaction, handlePongWin }}>
+    <GameStateContext.Provider
+      value={{
+        session, profile, loading, refreshGameState: loadGameState,
+        addEntrobucks, spendEntrobucks, quests, userQuests, startQuest, completeQuest, incrementQuest,
+        shopItems, inventory, buyItem, equipItem, unequipItem,
+        useModifier, cosmeticSets, claimedSets, claimSetBonus,
+        activeWindow, setActiveWindow, logTransaction,
+        handlePongWin
+      }}
+    >
       {children}
     </GameStateContext.Provider>
   );
 }
 
-export function useGameState() { const ctx = useContext(GameStateContext); if (!ctx) throw new Error("useGameState must be used within a GameStateProvider"); return ctx; }
+export function useGameState() {
+  const ctx = useContext(GameStateContext);
+  if (!ctx) throw new Error("useGameState must be used within a GameStateProvider");
+  return ctx;
+}
