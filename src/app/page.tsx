@@ -1,3 +1,8 @@
+// PATCH 6: Fixed XP debug function consistency
+// Changes:
+// - Uses consistent XP_PER_LEVEL = 263
+// - Better error handling
+
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
@@ -11,6 +16,9 @@ import QuestLogPage from "./quests/page";
 import AvatarStudio from "./profile/page";
 import MusicPlayer from "@/components/MusicPlayer";
 import Sidebar from "@/components/Sidebar";
+
+// FIXED: Centralized constant
+const XP_PER_LEVEL = 263;
 
 function GameEngineContent() {
   const {
@@ -58,43 +66,41 @@ function GameEngineContent() {
     }
   };
 
+  // FIXED: Consistent XP formula
   async function addDebugXp(amount: number) {
     if (!session?.user || !profile) return;
 
-    // Try RPC first
-    const { error: rpcError } = await supabase.rpc("add_xp", {
-      user_id: session.user.id,
-      amount,
-    });
+    try {
+      // Try RPC first
+      const { error: rpcError } = await supabase.rpc("add_xp", {
+        user_id: session.user.id,
+        amount,
+      });
 
-    // If RPC fails (e.g. not updated on backend yet), use fallback logic
-    if (rpcError) {
-       console.warn("RPC failed, using client fallback");
-       let xpPool = (profile.xp ?? 0) + amount;
-       let level = profile.level ?? 1;
-       let threshold = level * 263; // UPDATED to 132
+      // If RPC fails, use fallback logic
+      if (rpcError) {
+        console.warn("RPC failed, using client fallback:", rpcError);
+        let xpPool = (profile.xp ?? 0) + amount;
+        let level = profile.level ?? 1;
+        let threshold = level * XP_PER_LEVEL; // FIXED: Using constant
 
-       while (xpPool >= threshold) {
-         xpPool -= threshold;
-         level += 1;
-         threshold = level * 263; // UPDATED to 132
-       }
+        while (xpPool >= threshold) {
+          xpPool -= threshold;
+          level += 1;
+          threshold = level * XP_PER_LEVEL; // FIXED: Using constant
+        }
 
-       await supabase
-         .from("profiles")
-         .update({ xp: xpPool, level })
-         .eq("id", session.user.id);
+        await supabase
+          .from("profiles")
+          .update({ xp: xpPool, level })
+          .eq("id", session.user.id);
+      }
+      
+      await refreshGameState();
+    } catch (error) {
+      console.error("Debug XP add failed:", error);
     }
-    
-    await refreshGameState();
   }
-
-  // --- AUTH REDIRECT (DISABLED TO ALLOW GUEST/LOGOUT STATE) ---
-  /*
-  useEffect(() => {
-    if (!isEmbed && !loading && !session) window.location.href = "/login";
-  }, [loading, session, isEmbed]);
-  */
 
   useEffect(() => {
     async function ensureProfile() {
@@ -107,21 +113,26 @@ function GameEngineContent() {
       const rawName = session.user.email?.split("@")[0] || "operative";
       const safeName = rawName.replace(/[^a-zA-Z0-9_]/g, "");
       
-      const { error } = await supabase.from("profiles").insert({
-        id: session.user.id,
-        username: safeName,
-        avatar: "default",
-        entrobucks: 0,
-        xp: 0,
-        level: 1,
-      });
+      try {
+        const { error } = await supabase.from("profiles").insert({
+          id: session.user.id,
+          username: safeName,
+          avatar: "default",
+          entrobucks: 0,
+          xp: 0,
+          level: 1,
+        });
 
-      if (error) {
+        if (error) {
           console.error("Profile creation failed (stopping retry loop):", error.message);
-      } else {
+        } else {
           await refreshGameState();
+        }
+      } catch (error) {
+        console.error("Profile creation error:", error);
+      } finally {
+        creatingProfile.current = false;
       }
-      creatingProfile.current = false;
     }
     void ensureProfile();
   }, [loading, session, profile, refreshGameState]);
