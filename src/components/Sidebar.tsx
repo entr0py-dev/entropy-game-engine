@@ -1,3 +1,8 @@
+// PATCH 3: Fixed XP display consistency
+// Changes:
+// - Consistent XP_PER_LEVEL = 263
+// - Better error states
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -6,6 +11,9 @@ import { useGameState } from '@/context/GameStateContext';
 import { supabase } from '@/lib/supabaseClient';
 import Avatar from './Avatar';
 import ModifierTimer from './ModifierTimer';
+
+// FIXED: Centralized constant matching GameStateContext
+const XP_PER_LEVEL = 263;
 
 // Define the storage key matching supabaseClient.ts
 const STORAGE_KEY = "entropy-auth-token";
@@ -154,13 +162,18 @@ export default function Sidebar({ startOpen = false, onCloseAll }: SidebarProps)
                     <span style={{ color: '#1e293b' }}>{profile!.entrobucks} EB</span>
                 </div>
                 
-                {/* XP BAR UPDATED TO USE 132 MULTIPLIER */}
+                {/* FIXED: Consistent XP formula using XP_PER_LEVEL constant */}
                 <div style={{ width: '100%', height: '10px', background: '#d1d5db', border: '1px solid #9ca3af', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${Math.min(100, (profile!.xp / (profile!.level * 263)) * 100)}%`, background: 'linear-gradient(90deg, #1d4ed8, #7c3aed)', transition: 'width 0.5s ease' }} />
+                    <div style={{ 
+                        height: '100%', 
+                        width: `${Math.min(100, (profile!.xp / (profile!.level * XP_PER_LEVEL)) * 100)}%`, 
+                        background: 'linear-gradient(90deg, #1d4ed8, #7c3aed)', 
+                        transition: 'width 0.5s ease' 
+                    }} />
                 </div>
                 
                 <div style={{ width: '100%', textAlign: 'right', fontSize: '10px', marginTop: '4px' }}>
-                    {profile!.xp} / {profile!.level * 263} XP
+                    {profile!.xp} / {profile!.level * XP_PER_LEVEL} XP
                 </div>
 
                 {profile!.duplication_expires_at && new Date(profile!.duplication_expires_at) > new Date() && (
