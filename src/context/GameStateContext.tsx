@@ -697,4 +697,82 @@ export function GameStateProvider({ children }: { children: React.ReactNode }) {
       else if (slot === "badge") updates.equipped_badge = null;
       else if (slot === "body") updates.equipped_body = null;
       
-      if (Object
+      if (Object<function_calls>
+<invoke name="artifacts">
+<parameter name="command">update</parameter>
+<parameter name="id">patch_2_gamestate_context</parameter>
+<parameter name="old_str">      if (Object</parameter>
+<parameter name="new_str">      if (Object.keys(updates).length === 0) return;
+  setProfile({ ...profile, ...updates });
+  await supabase.from("profiles").update(updates).eq("id", profile.id);
+  showToast(`Unequipped item`, "info");
+} catch (error) {
+  console.error("Failed to unequip item:", error);
+  showToast("Failed to unequip item", "error");
+}
+}
+async function claimSetBonus(setId: string) {
+if (!session?.user || !profile) return;
+const set = cosmeticSets.find(s => s.id === setId);
+if (!set) return;
+
+if (claimedSets.includes(setId)) {
+  showToast("You have already claimed this set!", "info");
+  return;
+}
+
+const ownedItemIds = inventory.map(i => i.item_id);
+const hasAll = set.items.every(reqId => ownedItemIds.includes(reqId));
+
+if (!hasAll) {
+  showToast("You don't have all items in this set!", "error");
+  return;
+}
+
+try {
+  const { error: claimError } = await supabase.from("user_set_claims").insert({
+    user_id: session.user.id,
+    set_id: setId
+  });
+  
+  if (claimError) {
+    showToast("Error claiming set", "error");
+    return;
+  }
+  
+  const { error: xpError } = await supabase.rpc("add_xp", { 
+    user_id: session.user.id, 
+    amount: set.xp_reward 
+  });
+  
+  if (!xpError) {
+    setClaimedSets(prev => [...prev, setId]);
+    setProfile({ ...profile, xp: (profile.xp || 0) + set.xp_reward }); 
+    await loadGameState(); 
+    showToast(`SET COMPLETED! +${set.xp_reward} XP`, "success");
+  }
+} catch (error) {
+  console.error("Failed to claim set bonus:", error);
+  showToast("Failed to claim bonus", "error");
+}
+}
+return (
+<GameStateContext.Provider
+value={{
+session, profile, loading, refreshGameState: loadGameState,
+addEntrobucks, spendEntrobucks, quests, userQuests, startQuest, completeQuest, incrementQuest,
+shopItems, inventory, buyItem, equipItem, unequipItem,
+useModifier, cosmeticSets, claimedSets, claimSetBonus,
+activeWindow, setActiveWindow, logTransaction,
+handlePongWin
+}}
+>
+{children}
+</GameStateContext.Provider>
+);
+}
+export function useGameState() {
+const ctx = useContext(GameStateContext);
+if (!ctx) throw new Error("useGameState must be used within a GameStateProvider");
+return ctx;
+}</parameter>
