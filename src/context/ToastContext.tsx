@@ -1,15 +1,14 @@
 "use client";
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import Avatar from '@/components/Avatar'; // Import Avatar for item previews
+import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
+import Avatar from '@/components/Avatar';
 
-// --- TYPES ---
 type ToastType = 'success' | 'error' | 'info' | 'quest';
 
 interface ToastData {
   xp?: number;
   entrobucks?: number;
   itemName?: string;
-  profile?: any; // Needed to render the avatar preview correctly
+  profile?: any;
 }
 
 interface Toast {
@@ -25,36 +24,52 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
-// --- PROVIDER ---
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const showToast = useCallback((message: string, type: ToastType = 'info', data?: ToastData) => {
+    console.log("🎯 ToastContext.showToast called:", { message, type, data });
     const id = Date.now();
     setToasts((prev) => [...prev, { id, message, type, data }]);
     
-    // --- ADD THIS BLOCK ---
-    // Send signal to Framer Parent (GlobalToaster)
-    if (typeof window !== 'undefined' && window.parent) {
-        window.parent.postMessage({
-            type: 'SHOW_TOAST',
-            payload: { message, toastType: type, data }
-        }, '*');
-    }
-    // ----------------------
-    
-    // Auto-dismiss standard messages quickly, but keep Quests longer (6s) to read rewards
     const duration = type === 'quest' ? 6000 : 3000;
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, duration);
   }, []);
 
-  // Helper to render item preview (Borrowed logic from InventoryCard)
+  // ADD: Message listener for Framer postMessage
+  useEffect(() => {
+    console.log("👂 ToastContext: Setting up message listener...");
+    
+    const handleMessage = (event: MessageEvent) => {
+      console.log("📩 ToastContext received message:", event.data);
+      
+      // Accept from any origin for debugging
+      // if (event.origin !== "https://www.entropyofficial.com") {
+      //     console.warn("Rejected message from:", event.origin);
+      //     return;
+      // }
+
+      if (event.data?.type === "SHOW_TOAST") {
+        console.log("✅ Valid SHOW_TOAST message detected!");
+        const { message, toastType, data } = event.data.payload;
+        showToast(message, toastType, data);
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    console.log("✅ Message listener active");
+
+    return () => {
+      window.removeEventListener("message", handleMessage);
+      console.log("🔇 Message listener removed");
+    };
+  }, [showToast]);
+
   const renderItemPreview = (name: string, profile: any) => {
     if (!profile) return null;
     
-    // Guess slot based on name (simple heuristic since we don't have full item DB here)
     let renderMode: 'head' | 'face' | 'body' | 'badge' = 'body';
     let transformStyle = 'scale(1.5) translateY(-10px)';
 
@@ -95,7 +110,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={{ showToast }}>
       {children}
       
-      {/* TOAST CONTAINER (Fixed Bottom Right) */}
       <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 10000, display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end' }}>
         {toasts.map((toast) => (
           <div key={toast.id} className="retro-window" style={{ 
@@ -104,7 +118,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               animation: 'slideIn 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28)' 
           }}>
             
-            {/* HEADER */}
             <div className="retro-header" style={{ 
                 backgroundColor: toast.type === 'error' ? '#ef4444' : toast.type === 'success' ? '#16a34a' : toast.type === 'quest' ? '#d97706' : '#000080', 
                 fontSize: '10px', padding: '2px 4px', display: 'flex', justifyContent: 'space-between'
@@ -115,20 +128,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <button onClick={() => setToasts(p => p.filter(t => t.id !== toast.id))} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>X</button>
             </div>
 
-            {/* BODY */}
             <div style={{ padding: '12px', backgroundColor: '#c0c0c0', fontSize: '12px', color: 'black', display: 'flex', gap: '12px', alignItems: 'center' }}>
               
-              {/* QUEST REWARD LAYOUT */}
               {toast.type === 'quest' ? (
                   <div style={{ display: 'flex', gap: '12px', width: '100%', alignItems: 'center' }}>
-                      {/* Left: Item Preview (if any) or Generic Icon */}
                       {toast.data?.itemName ? (
                           renderItemPreview(toast.data.itemName, toast.data.profile)
                       ) : (
                           <div style={{ fontSize: '24px' }}>🏆</div>
                       )}
 
-                      {/* Right: Text Details */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
                           <span style={{ fontWeight: 'bold', fontSize: '13px', lineHeight: '1.1' }}>{toast.message}</span>
                           
@@ -152,7 +161,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                       </div>
                   </div>
               ) : (
-                  /* STANDARD TOAST LAYOUT */
                   <>
                     <span style={{ fontSize: '16px' }}>
                         {toast.type === 'success' ? '💾' : toast.type === 'error' ? '❌' : 'ℹ️'}
@@ -175,7 +183,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// --- HOOK ---
 export function useToast() {
   const ctx = useContext(ToastContext);
   if (!ctx) throw new Error("useToast must be used within a ToastProvider");
