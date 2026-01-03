@@ -20,7 +20,9 @@ export default function FlyerRunner() {
   const gameSpeed = useRef(1.0);
   const frameCount = useRef(0);
   const obstacles = useRef<{ id: number; x: number; y: number; z: number; type: 'block' | 'coin' }[]>([]);
-  const tunnelY = useRef(0); // Vertical Scroll Position
+  
+  // Scroll Position (0% to -100%)
+  const scrollY = useRef(0);
 
   // --- MOUSE CONTROL ---
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -34,9 +36,14 @@ export default function FlyerRunner() {
     if (!isPlaying) return;
     frameCount.current++;
     
-    // 1. SCROLL DOWNWARDS (Standard Infinite Runner)
+    // 1. SCROLL ENGINE
     gameSpeed.current = Math.min(MAX_SPEED, gameSpeed.current + 0.0005);
-    tunnelY.current += (20 * gameSpeed.current); 
+    // Move down (positive Y)
+    scrollY.current += (0.5 * gameSpeed.current);
+    // Reset loop
+    if (scrollY.current >= 100) {
+        scrollY.current -= 100;
+    }
 
     // 2. SPAWN OBJECTS
     if (frameCount.current % Math.floor(OBSTACLE_SPAWN_RATE / gameSpeed.current) === 0) {
@@ -84,6 +91,7 @@ export default function FlyerRunner() {
     obstacles.current = [];
     gameSpeed.current = 1.0;
     playerX.current = 50;
+    scrollY.current = 0;
     setIsPlaying(true);
   };
 
@@ -108,37 +116,31 @@ export default function FlyerRunner() {
                 }}
             >
                 {/* === LEFT WALL === */}
-                {/* Hinge: Left Edge of Screen. Folds IN 90deg. */}
                 <div className="wall left-wall">
-                    {/* TEXTURE: 
-                        - Width 200% (Double Wall Width)
-                        - Position RIGHT (Aligns CENTER of image to DEEP end of wall)
-                    */}
-                    <div 
-                        className="wall-texture"
-                        style={{ 
-                            backgroundPositionX: 'right', 
-                            backgroundPositionY: `${tunnelY.current}px` 
-                        }}
-                    />
-                    <div className="wall-mask" />
+                    <div className="scroll-container" style={{ transform: `translateY(${scrollY.current}%)` }}>
+                        {/* Image 1: Cropped Left, Flipped X */}
+                        <div className="crop-container left-crop">
+                            <img src="/assets/city_loop.png" className="texture-img flipped-x" alt="" />
+                        </div>
+                        {/* Image 2 (Loop Follower): Cropped Left, Flipped X */}
+                        <div className="crop-container left-crop" style={{ top: '-100%' }}>
+                             <img src="/assets/city_loop.png" className="texture-img flipped-x" alt="" />
+                        </div>
+                    </div>
                 </div>
 
                 {/* === RIGHT WALL === */}
-                {/* Hinge: Right Edge of Screen. Folds IN -90deg. */}
                 <div className="wall right-wall">
-                    {/* TEXTURE:
-                        - Width 200% (Double Wall Width)
-                        - Position LEFT (Aligns CENTER of image to DEEP end of wall)
-                    */}
-                    <div 
-                        className="wall-texture"
-                        style={{ 
-                            backgroundPositionX: 'left',
-                            backgroundPositionY: `${tunnelY.current}px` 
-                        }}
-                    />
-                    <div className="wall-mask" />
+                     <div className="scroll-container" style={{ transform: `translateY(${scrollY.current}%)` }}>
+                        {/* Image 1: Cropped Right, Flipped X */}
+                        <div className="crop-container right-crop">
+                            <img src="/assets/city_loop.png" className="texture-img flipped-x" alt="" />
+                        </div>
+                        {/* Image 2 (Loop Follower): Cropped Right, Flipped X */}
+                        <div className="crop-container right-crop" style={{ top: '-100%' }}>
+                             <img src="/assets/city_loop.png" className="texture-img flipped-x" alt="" />
+                        </div>
+                    </div>
                 </div>
 
                 {/* --- FLOOR & CEILING --- */}
@@ -152,7 +154,7 @@ export default function FlyerRunner() {
                         className="game-object"
                         style={{
                             transform: `translate3d(${obs.x * 10}px, ${obs.y * 5}px, ${-obs.z}px)`,
-                            opacity: obs.z > 2000 ? 0 : 1,
+                            opacity: obs.z > 2500 ? 0 : 1,
                             borderColor: obs.type === 'coin' ? '#fbbf24' : '#ef4444',
                             boxShadow: obs.type === 'coin' ? '0 0 20px #fbbf24' : '0 0 20px #ef4444',
                             borderRadius: obs.type === 'coin' ? '50%' : '2px'
@@ -194,7 +196,7 @@ export default function FlyerRunner() {
             .game-viewport {
                 width: 100vw; height: 100vh;
                 background: #000; overflow: hidden;
-                perspective: 600px; /* Standard Depth */
+                perspective: 600px;
                 cursor: none;
             }
             .scene-3d { width: 100%; height: 100%; transform-style: preserve-3d; }
@@ -203,49 +205,51 @@ export default function FlyerRunner() {
             /* --- WALL GEOMETRY --- */
             .wall {
                 position: absolute;
-                top: -150%; bottom: -150%; /* Vertical Overhang */
-                width: 4000px; /* Depth into distance */
-                background: rgba(0, 255, 0, 0.1); /* Faint green tint for debug */
-                backface-visibility: visible !important; /* FORCE VISIBILITY */
-                border-top: 4px solid #0f0; /* DEBUG LINE (top edge) */
-                border-bottom: 4px solid #0f0; /* DEBUG LINE (bottom edge) */
-                overflow: hidden;
+                top: -50%; bottom: -50%;
+                width: 5000px; 
+                background: #050505;
+                backface-visibility: visible;
+                overflow: hidden; /* Crucial for cropping */
             }
 
             .left-wall {
                 left: 0;
                 transform-origin: left center;
                 transform: rotateY(90deg);
+                border-bottom: 2px solid #0f0;
             }
 
             .right-wall {
                 right: 0;
                 transform-origin: right center;
                 transform: rotateY(-90deg);
+                border-bottom: 2px solid #0f0;
             }
 
-            /* --- TEXTURE MAPPING --- */
-            .wall-texture {
-                width: 100%; height: 100%;
-                background-image: url('/assets/city_loop.png');
-                background-repeat: repeat-y;
-                
-                /* THE MAGIC FIX: 
-                   Width 200% ensures the image is double the wall size.
-                   We then align Left/Right in the inline styles above. 
-                */
-                background-size: 200% auto; 
-                
-                opacity: 0.9;
-                will-change: background-position;
+            /* --- TEXTURE SYSTEM --- */
+            .scroll-container {
+                position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+                will-change: transform;
+            }
+            
+            .crop-container {
+                position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+                overflow: hidden;
             }
 
-            .wall-mask {
-                position: absolute; inset: 0;
-                /* Darken the far end (which is the Right side of Left Wall / Left side of Right Wall) */
-                background: linear-gradient(to right, transparent 0%, #000 95%); 
-                pointer-events: none;
+            .texture-img {
+                position: absolute;
+                height: 100%; width: 200%; /* Double width for cropping */
+                max-width: none;
             }
+
+            /* Crop Logic: Shift image left or right */
+            .left-crop .texture-img { left: 0; }
+            .right-crop .texture-img { left: -100%; }
+
+            /* THE FIX: Flip images horizontally to put road in distance */
+            .flipped-x { transform: scaleX(-1); }
+
 
             /* --- FLOOR & CEILING --- */
             .floor-plane {
@@ -268,7 +272,6 @@ export default function FlyerRunner() {
                 display: flex; align-items: center; justify-content: center;
                 color: white; font-weight: bold; font-family: monospace; font-size: 30px;
                 transform-style: preserve-3d;
-                backface-visibility: visible;
             }
 
             .fog-overlay {
