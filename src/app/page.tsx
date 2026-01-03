@@ -16,6 +16,7 @@ import QuestLogPage from "./quests/page";
 import AvatarStudio from "./profile/page";
 import MusicPlayer from "@/components/MusicPlayer";
 import Sidebar from "@/components/Sidebar";
+import Link from "next/link";
 
 // FIXED: Centralized constant
 const XP_PER_LEVEL = 263;
@@ -172,13 +173,24 @@ function GameEngineContent() {
                 <DebugButton label="Test Drop (Med)" onClick={() => handlePongWin('medium')} />
               </div>
               
-              <div style={{ position: "absolute", inset: 0, zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <div style={{ padding: "20px", backgroundColor: "#ff00ff", color: "white", border: "4px solid white", fontWeight: "bold" }}>
-                  HOME STUDIO PLACEHOLDER
-                </div>
-              </div>
-            </>
-          )}
+             <div style={{ position: "absolute", inset: 0, zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+  <div style={{ padding: "40px", backgroundColor: "black", border: "2px solid #00ff00", textAlign: "center" }}>
+    <h1 style={{ color: "white", marginBottom: "20px", fontFamily: "monospace" }}>HOME_STUDIO_OFFLINE</h1>
+    
+    <Link href="/arcade" style={{ 
+        display: "inline-block", 
+        padding: "10px 20px", 
+        backgroundColor: "#00ff00", 
+        color: "black", 
+        fontWeight: "bold", 
+        fontFamily: "monospace",
+        textDecoration: "none"
+    }}>
+      ENTER ARCADE &gt;
+    </Link>
+  </div>
+</div>
+         )}
 
           {/* DRAGGABLE WINDOW */}
           {activeWindow !== "none" && (
