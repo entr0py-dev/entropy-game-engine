@@ -12,22 +12,32 @@ import AvatarStudio from "./profile/page";
 import MusicPlayer from "@/components/MusicPlayer";
 import Sidebar from "@/components/Sidebar";
 
-// --- CSS FOR THE "LOOP PNG" ANIMATION ---
+// --- ROBUST ANIMATION STYLES ---
 const ANIMATION_STYLES = `
-  @keyframes textureFly {
-    0% { background-position: 0 0; }
-    100% { background-position: 0 100%; } /* Loops the PNG vertically */
+  /* This moves the track exactly 50% (the height of one image) then resets instantly */
+  @keyframes infiniteScroll {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(50%); } 
   }
+
+  .scrolling-track {
+    animation: infiniteScroll 4s linear infinite;
+    width: 100%;
+    /* We stack two images, so height is 200% of the view */
+    height: 200vh; 
+    display: flex;
+    flex-direction: column-reverse; /* Stack them so they flow down */
+  }
+
+  /* Scanlines for the CRT effect */
   @keyframes scanline {
     0% { transform: translateY(-100%); }
     100% { transform: translateY(100%); }
   }
-  .animate-texture {
-    animation: textureFly 4s linear infinite; /* Adjusted speed for city scale */
-    will-change: background-position;
-  }
-  .animate-scanline {
+  .scanline-overlay {
     animation: scanline 8s linear infinite;
+    background: linear-gradient(to bottom, transparent 50%, rgba(0, 255, 0, 0.1) 50%);
+    background-size: 100% 4px;
   }
 `;
 
@@ -47,6 +57,9 @@ function GameEngineContent() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const isEmbed = searchParams.get("embed") === "true";
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  // Debug State to check if image loads
+  const [imgError, setImgError] = useState(false);
    
   const [winState, setWinState] = useState({
     x: 50,
@@ -124,58 +137,76 @@ function GameEngineContent() {
         width: "100vw",
         height: "100vh",
         overflow: "hidden", 
-        backgroundColor: "#000",
+        backgroundColor: "#050505",
         overscrollBehavior: "none", 
       }}
     >
-      {/* --- BACKGROUND LOOP ENGINE (Using /assets/city_loop.png) --- */}
+      {/* --- BACKGROUND VIDEO ENGINE --- */}
       {!isEmbed && (
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none overflow-hidden bg-black">
             
-            {/* 1. THE LOOP PNG LAYER */}
-            {/* This div applies the perspective transform AND the mouse parallax */}
+            {/* 3D PERSPECTIVE CONTAINER */}
             <div 
                 style={{
                     position: "absolute",
-                    inset: "-50%", // Make it larger than screen to allow movement without edges showing
+                    inset: "-50%", // Make container larger than screen
                     width: "200%",
                     height: "200%",
-                    
-                    // --- THE IMAGE CONFIGURATION ---
-                    backgroundImage: "url('/assets/city_loop.png')", // <--- UPDATED PATH
-                    backgroundRepeat: "repeat",
-                    backgroundSize: "512px 512px", // Adjust based on your PNG's actual size
-                    
-                    // --- TRANSFORM: PERSPECTIVE + PARALLAX ---
-                    transform: `
-                        perspective(500px) 
-                        rotateX(60deg) 
-                        translateY(-100px) 
-                        translateZ(-200px)
-                        translateX(${mousePos.x * 100}px) /* Parallax X */
-                        translateY(${mousePos.y * 50}px)  /* Parallax Y */
-                    `,
-                    transformOrigin: "center top",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    // The 3D Magic happens here:
+                    perspective: "600px", 
+                    transformStyle: "preserve-3d",
                 }}
-                className="animate-texture" // Triggers the infinite scroll animation
-            />
+            >
+                {/* THE ROTATED PLANE */}
+                <div
+                    style={{
+                        width: "100%",
+                        height: "100%",
+                        position: "relative",
+                        // Rotate the floor flat, and add parallax tilt
+                        transform: `
+                            rotateX(60deg) 
+                            translateZ(-100px)
+                            rotateZ(${mousePos.x * 5}deg) /* Slight banking turn */
+                        `,
+                        transformOrigin: "center center",
+                    }}
+                >
+                    {/* THE MOVING TRACK (Infinite Scroller) */}
+                    <div className="scrolling-track">
+                         {/* Image 1 */}
+                         {/* eslint-disable-next-line @next/next/no-img-element */}
+                         <img 
+                            src="/assets/city_loop.png" 
+                            alt="City Loop 1"
+                            style={{ width: "100%", height: "100vh", objectFit: "cover", opacity: 0.6 }}
+                            onError={() => setImgError(true)}
+                         />
+                         {/* Image 2 (Clone for looping) */}
+                         {/* eslint-disable-next-line @next/next/no-img-element */}
+                         <img 
+                            src="/assets/city_loop.png" 
+                            alt="City Loop 2"
+                            style={{ width: "100%", height: "100vh", objectFit: "cover", opacity: 0.6 }}
+                         />
+                    </div>
+                </div>
+            </div>
 
-            {/* 2. ATMOSPHERE / VIGNETTE */}
-            <div className="absolute inset-0 z-20 bg-[radial-gradient(circle_at_center,transparent_0%,#000_90%)]" />
-
-            {/* 3. SCANLINES (Optional Video Feel) */}
-            <div 
-                className="absolute inset-0 z-20 opacity-20 animate-scanline"
-                style={{
-                    background: "linear-gradient(to bottom, transparent 50%, #0f0 50%)",
-                    backgroundSize: "100% 4px"
-                }}
-            />
+            {/* VIGNETTE & ATMOSPHERE */}
+            <div className="absolute inset-0 z-10 bg-[radial-gradient(circle_at_center,transparent_0%,#000_80%)]" />
+            
+            {/* SCANLINES */}
+            <div className="absolute inset-0 z-20 pointer-events-none scanline-overlay opacity-30" />
 
             {/* DEBUG READOUT */}
             <div className="fixed bottom-4 right-4 z-[9999] bg-black border border-green-500 p-2 text-[10px] text-green-500 font-mono">
-                <p>TEXTURE: /assets/city_loop.png</p>
-                <p>PARALLAX: {mousePos.x.toFixed(2)} / {mousePos.y.toFixed(2)}</p>
+                <p>STATUS: {imgError ? "❌ IMG LOAD FAILED" : "✅ IMG LOADED"}</p>
+                <p>PATH: /assets/city_loop.png</p>
+                <p>PARALLAX: {mousePos.x.toFixed(2)}</p>
             </div>
         </div>
       )}
@@ -201,7 +232,7 @@ function GameEngineContent() {
                 <DebugButton label="Test Drop (Med)" onClick={() => handlePongWin('medium')} />
               </div>
               
-              {/* CENTER UI PLACEHOLDER (With slight parallax) */}
+              {/* CENTER UI PLACEHOLDER */}
               <div 
                 style={{ 
                     position: "absolute", 
@@ -210,12 +241,13 @@ function GameEngineContent() {
                     display: "flex", 
                     alignItems: "center", 
                     justifyContent: "center",
-                    transform: `translate(${mousePos.x * 10}px, ${mousePos.y * 10}px)`, 
+                    transform: `translate(${mousePos.x * 20}px, ${mousePos.y * 20}px)`, 
                 }}
               >
-                <div className="bg-black/90 border border-green-500/50 p-8 backdrop-blur-md text-center shadow-[0_0_30px_rgba(0,255,0,0.2)]">
+                <div className="bg-black/90 border border-green-500/50 p-8 backdrop-blur-md text-center shadow-[0_0_50px_rgba(0,255,0,0.1)]">
                     <h1 className="text-green-500 font-mono text-xl tracking-[0.2em] mb-2 animate-pulse">HOME_STUDIO</h1>
-                    <p className="text-gray-500 text-xs font-mono">CITY_LOOP LOADED</p>
+                    {imgError && <p className="text-red-500 text-xs font-mono">ERROR: PNG NOT FOUND</p>}
+                    {!imgError && <p className="text-gray-500 text-xs font-mono">SYSTEM ONLINE</p>}
                 </div>
               </div>
             </>
