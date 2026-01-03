@@ -14,33 +14,32 @@ import Sidebar from "@/components/Sidebar";
 
 // --- THE INFINITE LOOP ENGINE ---
 const ANIMATION_STYLES = `
-  /* This moves the track UPWARDS (translateY -50%). 
-     Because the track is 200vh tall, moving it -50% moves it exactly 1 full screen height.
-     Once it hits -50%, it snaps back to 0% instantly, creating a perfect loop.
+  /* We stack two images. Total height = 200vh.
+     We move UP by 100vh (one image height).
+     Once we hit -100vh, we snap back to 0. 
+     This creates a seamless loop.
   */
   @keyframes infiniteScroll {
     from { transform: translateY(0); }
-    to { transform: translateY(-50%); } 
+    to { transform: translateY(-100vh); } 
   }
 
   .loop-track {
-    position: absolute;
-    top: 0;
-    left: 0;
+    display: flex;
+    flex-direction: column; /* Stack images on top of each other */
     width: 100%;
-    /* Double the screen height so we can stack two images */
-    height: 200vh;
-    /* Adjust '15s' to change speed (Lower = Faster) */
-    animation: infiniteScroll 15s linear infinite; 
-    z-index: 0;
+    /* No fixed height needed, content dictates it */
+    animation: infiniteScroll 20s linear infinite; 
+    will-change: transform; /* Performance optimization */
   }
   
   .loop-image {
     width: 100%;
-    /* Each image takes up exactly one full screen height */
-    height: 50%; 
+    height: 100vh; /* Force exact screen height */
     object-fit: cover;
     display: block;
+    /* Optional: fix for some browsers showing tiny lines between images */
+    margin-bottom: -1px; 
   }
 `;
 
@@ -140,11 +139,11 @@ function GameEngineContent() {
       {!isEmbed && (
         <div className="absolute inset-0 overflow-hidden">
             
-            {/* PARALLAX CONTAINER (Moves slightly with mouse) */}
+            {/* PARALLAX WRAPPER */}
             <div 
                 style={{
                     position: "absolute",
-                    inset: "-10%", // Give it some buffer room for parallax movement
+                    inset: "-10%", 
                     width: "120%",
                     height: "120%",
                     transform: `translate(${mousePos.x * 20}px, ${mousePos.y * 20}px)`,
@@ -152,14 +151,14 @@ function GameEngineContent() {
             >
                 {/* THE MOVING TRACK */}
                 <div className="loop-track">
-                     {/* Image 1 (Current) */}
+                     {/* Image 1 */}
                      {/* eslint-disable-next-line @next/next/no-img-element */}
                      <img 
                         src="/assets/city_loop.png" 
                         alt="City Loop 1"
                         className="loop-image"
                      />
-                     {/* Image 2 (Next in line) */}
+                     {/* Image 2 */}
                      {/* eslint-disable-next-line @next/next/no-img-element */}
                      <img 
                         src="/assets/city_loop.png" 
@@ -169,17 +168,16 @@ function GameEngineContent() {
                 </div>
             </div>
 
-            {/* ATMOSPHERE OVERLAYS */}
-            {/* Vignette */}
+            {/* ATMOSPHERE / VIGNETTE */}
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.8)_100%)] z-10 pointer-events-none" />
             
-            {/* Green Tint / Scanlines */}
-            <div className="absolute inset-0 bg-green-900/10 mix-blend-overlay z-10 pointer-events-none" />
-            
-            {/* Text Overlay */}
-            <div className="absolute top-10 left-10 z-20 pointer-events-none">
-                 <h1 className="text-white/50 text-xs tracking-widest font-mono">LOCATION: LEEDS_DNB_HQ</h1>
-            </div>
+            {/* SCANLINES */}
+            <div className="absolute inset-0 pointer-events-none z-10 opacity-20" 
+                 style={{ 
+                    background: "linear-gradient(to bottom, transparent 50%, #000 50%)", 
+                    backgroundSize: "100% 4px" 
+                 }} 
+            />
         </div>
       )}
 
