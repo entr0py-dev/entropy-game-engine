@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useGameState } from "@/context/GameStateContext";
 
 // --- CONFIG ---
-const OBSTACLE_SPAWN_RATE = 60;
+const OBSTACLE_SPAWN_RATE = 50;
 const MAX_SPEED = 2.5;
 
 export default function FlyerRunner() {
@@ -22,7 +22,7 @@ export default function FlyerRunner() {
   const obstacles = useRef<{ id: number; x: number; y: number; z: number; type: 'block' | 'coin' }[]>([]);
   const tunnelZ = useRef(0); // Texture Scroll Position
 
-  // --- MOUSE CONTROL (Banks the Camera) ---
+  // --- MOUSE CONTROL ---
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isPlaying) return;
     const xPercent = (e.clientX / window.innerWidth) * 100;
@@ -111,23 +111,23 @@ export default function FlyerRunner() {
                     `
                 }}
             >
-                {/* --- 1. LEFT WALL --- */}
+                {/* --- 1. LEFT WALL (Left Half of Image) --- */}
                 <div className="wall left-wall">
                     <div 
-                        className="wall-texture" 
+                        className="wall-texture left-texture" 
                         style={{ backgroundPositionX: `${tunnelZ.current}px` }} 
                     />
                 </div>
 
-                {/* --- 2. RIGHT WALL --- */}
+                {/* --- 2. RIGHT WALL (Right Half of Image) --- */}
                 <div className="wall right-wall">
                     <div 
-                        className="wall-texture mirror" 
+                        className="wall-texture right-texture" 
                         style={{ backgroundPositionX: `${tunnelZ.current}px` }} 
                     />
                 </div>
 
-                {/* --- 3. FLOOR & CEILING (Framing) --- */}
+                {/* --- 3. FLOOR & CEILING --- */}
                 <div className="floor-plane" />
                 <div className="ceiling-plane" />
 
@@ -155,7 +155,6 @@ export default function FlyerRunner() {
 
         {/* --- UI --- */}
         <div className="hud-layer">
-            {/* RETICLE */}
             <div 
                 className="reticle"
                 style={{
@@ -183,23 +182,17 @@ export default function FlyerRunner() {
                 perspective: 600px;
                 cursor: none;
             }
-            .scene-3d {
-                width: 100%; height: 100%;
-                transform-style: preserve-3d;
-            }
-            .camera-rig {
-                width: 100%; height: 100%;
-                transform-style: preserve-3d;
-                transition: transform 0.1s linear; /* Smooth banking */
-            }
+            .scene-3d { width: 100%; height: 100%; transform-style: preserve-3d; }
+            .camera-rig { width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 0.1s linear; }
 
             /* --- WALL GEOMETRY --- */
             .wall {
                 position: absolute;
                 top: -50%; bottom: -50%;
-                width: 4000px; /* Long Wall */
+                width: 4000px;
                 background: #111;
-                backface-visibility: visible; /* CRITICAL FIX for disappearing wall */
+                backface-visibility: visible;
+                overflow: hidden; /* Ensure texture doesn't leak */
             }
             .left-wall {
                 left: 0;
@@ -218,22 +211,27 @@ export default function FlyerRunner() {
             .wall-texture {
                 width: 100%; height: 100%;
                 background-image: url('/assets/city_loop.png');
-                
-                /* SPLIT FIX: Zoom in to 200% so we only see half the image per wall */
-                background-size: 200% 100%; 
-                background-position: left center; /* Start from left edge */
                 background-repeat: repeat-x;
                 
-                opacity: 0.6;
+                /* SPLIT MAGIC: 200% width means only half the image fits in the box */
+                background-size: 200% 100%; 
                 
-                /* FLIP FIX: Flip Vertical (-scaleY) to put 'inside' pixels at top */
-                transform: scaleY(-1); 
+                opacity: 0.8;
             }
 
-            .mirror {
-                /* RIGHT WALL FIX: Flip X to mirror the left wall perfectly */
-                /* Keep the Y flip for vertical consistency */
-                transform: scaleX(-1) scaleY(-1); 
+            /* LEFT WALL: Show 0% to 50% of the image */
+            .left-texture {
+                background-position-y: center;
+                /* Background position X is handled by JS for speed */
+            }
+
+            /* RIGHT WALL: Show 50% to 100% of the image */
+            .right-texture {
+                background-position-y: center;
+                
+                /* TRANSFORM: Mirror it so the "center" of the image meets the center of the tunnel */
+                /* ScaleX -1 flips it horizontally */
+                transform: scaleX(-1); 
             }
 
             /* --- FLOOR & CEILING --- */
@@ -250,7 +248,7 @@ export default function FlyerRunner() {
                 pointer-events: none;
             }
 
-            /* --- OBJECTS --- */
+            /* --- OBJECTS & HUD --- */
             .game-object {
                 position: absolute; top: 50%; left: 50%;
                 width: 60px; height: 60px;
@@ -258,22 +256,16 @@ export default function FlyerRunner() {
                 color: white; font-weight: bold; font-family: monospace; font-size: 24px;
                 transform-style: preserve-3d;
             }
-
             .fog-overlay {
                 position: absolute; inset: 0;
                 background: radial-gradient(circle, transparent 20%, black 80%);
                 pointer-events: none; z-index: 10;
             }
-
-            /* --- HUD --- */
             .hud-layer { position: absolute; inset: 0; z-index: 50; }
             .reticle {
-                position: absolute; bottom: 80px;
-                width: 0; height: 0;
-                border-left: 20px solid transparent;
-                border-right: 20px solid transparent;
-                border-bottom: 50px solid #0f0;
-                filter: drop-shadow(0 0 10px #0f0);
+                position: absolute; bottom: 80px; width: 0; height: 0;
+                border-left: 20px solid transparent; border-right: 20px solid transparent;
+                border-bottom: 50px solid #0f0; filter: drop-shadow(0 0 10px #0f0);
             }
             .score { position: absolute; top: 20px; left: 20px; color: #0f0; font-family: monospace; font-size: 24px; }
             .menu {
