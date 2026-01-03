@@ -12,32 +12,23 @@ import AvatarStudio from "./profile/page";
 import MusicPlayer from "@/components/MusicPlayer";
 import Sidebar from "@/components/Sidebar";
 
-// --- ROBUST ANIMATION STYLES ---
+// --- ANIMATION STYLES ---
 const ANIMATION_STYLES = `
-  /* This moves the track exactly 50% (the height of one image) then resets instantly */
+  /* Moves the track down by exactly 50% (the height of one image segment) */
   @keyframes infiniteScroll {
     0% { transform: translateY(0); }
     100% { transform: translateY(50%); } 
   }
 
   .scrolling-track {
-    animation: infiniteScroll 4s linear infinite;
+    animation: infiniteScroll 5s linear infinite; /* Slower speed for debugging */
     width: 100%;
-    /* We stack two images, so height is 200% of the view */
-    height: 200vh; 
+    height: 200%; /* Needs to be 200% to hold two stacked images */
+    position: absolute;
+    bottom: 0;
+    left: 0;
     display: flex;
-    flex-direction: column-reverse; /* Stack them so they flow down */
-  }
-
-  /* Scanlines for the CRT effect */
-  @keyframes scanline {
-    0% { transform: translateY(-100%); }
-    100% { transform: translateY(100%); }
-  }
-  .scanline-overlay {
-    animation: scanline 8s linear infinite;
-    background: linear-gradient(to bottom, transparent 50%, rgba(0, 255, 0, 0.1) 50%);
-    background-size: 100% 4px;
+    flex-direction: column-reverse; /* Stack upwards */
   }
 `;
 
@@ -54,20 +45,16 @@ function GameEngineContent() {
   const searchParams = useSearchParams();
   const creatingProfile = useRef(false);
   const hasTriedCreating = useRef(false);
+  
+  // Parallax State
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [imgError, setImgError] = useState(false);
+  
   const isEmbed = searchParams.get("embed") === "true";
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  
-  // Debug State to check if image loads
-  const [imgError, setImgError] = useState(false);
-   
-  const [winState, setWinState] = useState({
-    x: 50,
-    y: 50,
-    width: 1000,
-    height: 700,
-  });
+  const [winState, setWinState] = useState({ x: 50, y: 50, width: 1000, height: 700 });
 
+  // --- STANDARD HOOKS ---
   useEffect(() => {
     const win = searchParams.get("window");
     const side = searchParams.get("sidebar") === "true";
@@ -126,7 +113,7 @@ function GameEngineContent() {
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, [isEmbed]);
 
-  if (loading) return <div className="w-full h-screen bg-black flex items-center justify-center text-green-500 font-mono">LOADING SYSTEM...</div>;
+  if (loading) return <div className="bg-black h-screen text-green-500 font-mono p-10">LOADING...</div>;
 
   return (
     <>
@@ -137,81 +124,85 @@ function GameEngineContent() {
         width: "100vw",
         height: "100vh",
         overflow: "hidden", 
-        backgroundColor: "#050505",
+        backgroundColor: "#222", // Grey background to see transparent PNGs
         overscrollBehavior: "none", 
       }}
     >
-      {/* --- BACKGROUND VIDEO ENGINE --- */}
+      {/* --- 1. BACKGROUND ENGINE (The Floor) --- */}
       {!isEmbed && (
-        <div className="absolute inset-0 pointer-events-none overflow-hidden bg-black">
+        <div className="absolute inset-0 overflow-hidden perspective-container">
             
-            {/* 3D PERSPECTIVE CONTAINER */}
+            {/* 3D PERSPECTIVE WRAPPER */}
             <div 
                 style={{
                     position: "absolute",
-                    inset: "-50%", // Make container larger than screen
+                    top: "50%", // Start from middle of screen (Horizon)
+                    left: "-50%",
                     width: "200%",
-                    height: "200%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    // The 3D Magic happens here:
-                    perspective: "600px", 
+                    height: "100%", // Bottom half of screen
+                    perspective: "600px",
                     transformStyle: "preserve-3d",
                 }}
             >
-                {/* THE ROTATED PLANE */}
+                {/* THE MOVING PLANE */}
                 <div
                     style={{
+                        position: "absolute",
                         width: "100%",
-                        height: "100%",
-                        position: "relative",
-                        // Rotate the floor flat, and add parallax tilt
+                        height: "200%", // Very tall to allow perspective stretching
+                        background: "#111", // Fallback color
+                        transformOrigin: "center top", // Rotate from the horizon line
                         transform: `
                             rotateX(60deg) 
-                            translateZ(-100px)
-                            rotateZ(${mousePos.x * 5}deg) /* Slight banking turn */
+                            translateZ(0px)
+                            rotateZ(${mousePos.x * 10}deg) /* Mouse Tilt */
                         `,
-                        transformOrigin: "center center",
                     }}
                 >
-                    {/* THE MOVING TRACK (Infinite Scroller) */}
+                    {/* THE INFINITE SCROLLER */}
                     <div className="scrolling-track">
                          {/* Image 1 */}
                          {/* eslint-disable-next-line @next/next/no-img-element */}
                          <img 
                             src="/assets/city_loop.png" 
-                            alt="City Loop 1"
-                            style={{ width: "100%", height: "100vh", objectFit: "cover", opacity: 0.6 }}
+                            alt="Loop Segment 1"
+                            style={{ 
+                                width: "100%", 
+                                height: "50%", // Takes up half the track
+                                objectFit: "cover", 
+                                border: "2px solid red", // DEBUG BORDER
+                                opacity: 1 
+                            }}
                             onError={() => setImgError(true)}
                          />
-                         {/* Image 2 (Clone for looping) */}
+                         {/* Image 2 (Clone) */}
                          {/* eslint-disable-next-line @next/next/no-img-element */}
                          <img 
                             src="/assets/city_loop.png" 
-                            alt="City Loop 2"
-                            style={{ width: "100%", height: "100vh", objectFit: "cover", opacity: 0.6 }}
+                            alt="Loop Segment 2"
+                            style={{ 
+                                width: "100%", 
+                                height: "50%", 
+                                objectFit: "cover",
+                                border: "2px solid red", // DEBUG BORDER
+                                opacity: 1 
+                            }}
                          />
                     </div>
                 </div>
             </div>
 
-            {/* VIGNETTE & ATMOSPHERE */}
-            <div className="absolute inset-0 z-10 bg-[radial-gradient(circle_at_center,transparent_0%,#000_80%)]" />
-            
-            {/* SCANLINES */}
-            <div className="absolute inset-0 z-20 pointer-events-none scanline-overlay opacity-30" />
-
-            {/* DEBUG READOUT */}
-            <div className="fixed bottom-4 right-4 z-[9999] bg-black border border-green-500 p-2 text-[10px] text-green-500 font-mono">
-                <p>STATUS: {imgError ? "❌ IMG LOAD FAILED" : "✅ IMG LOADED"}</p>
-                <p>PATH: /assets/city_loop.png</p>
-                <p>PARALLAX: {mousePos.x.toFixed(2)}</p>
+            {/* DEBUG INFO */}
+            <div className="fixed bottom-4 right-4 z-[9999] bg-white text-black p-4 font-bold border-4 border-red-500">
+                <p>STATUS: {imgError ? "❌ FAILED TO LOAD" : "✅ LOADED"}</p>
+                <p>Use Mouse to Tilt</p>
+                <p>If you see RED BORDERS, CSS is working.</p>
+                <p>If box is black inside red borders, PNG is black/transparent.</p>
             </div>
         </div>
       )}
 
-      {/* --- MAIN APP CONTENT --- */}
+      {/* --- 2. MAIN APP CONTENT --- */}
       <div style={{ display: "flex", width: "100%", height: "100%", position: "relative", zIndex: 30 }}>
         
         <div
@@ -227,12 +218,10 @@ function GameEngineContent() {
             <>
               {/* DEBUG BUTTONS */}
               <div style={{ position: "absolute", top: 12, left: 12, zIndex: 200, display: "flex", gap: "8px" }}>
-                <DebugButton label="+10,000 XP" onClick={() => addDebugXp(10000)} />
-                <DebugButton label="Test Drop (Hard)" onClick={() => handlePongWin('hard')} />
-                <DebugButton label="Test Drop (Med)" onClick={() => handlePongWin('medium')} />
+                <DebugButton label="+10k XP" onClick={() => addDebugXp(10000)} />
               </div>
               
-              {/* CENTER UI PLACEHOLDER */}
+              {/* CENTER UI */}
               <div 
                 style={{ 
                     position: "absolute", 
@@ -244,10 +233,8 @@ function GameEngineContent() {
                     transform: `translate(${mousePos.x * 20}px, ${mousePos.y * 20}px)`, 
                 }}
               >
-                <div className="bg-black/90 border border-green-500/50 p-8 backdrop-blur-md text-center shadow-[0_0_50px_rgba(0,255,0,0.1)]">
+                <div className="bg-black/90 border border-green-500/50 p-8 backdrop-blur-md text-center">
                     <h1 className="text-green-500 font-mono text-xl tracking-[0.2em] mb-2 animate-pulse">HOME_STUDIO</h1>
-                    {imgError && <p className="text-red-500 text-xs font-mono">ERROR: PNG NOT FOUND</p>}
-                    {!imgError && <p className="text-gray-500 text-xs font-mono">SYSTEM ONLINE</p>}
                 </div>
               </div>
             </>
@@ -259,23 +246,13 @@ function GameEngineContent() {
               position={{ x: winState.x, y: winState.y }}
               onDragStop={(e, d) => setWinState(prev => ({ ...prev, x: d.x, y: d.y }))}
               onResizeStop={(e, direction, ref, delta, position) => {
-                setWinState({
-                  width: parseInt(ref.style.width),
-                  height: parseInt(ref.style.height),
-                  ...position,
-                });
+                setWinState({ width: parseInt(ref.style.width), height: parseInt(ref.style.height), ...position });
               }}
-              minWidth={600}
-              minHeight={400}
-              bounds="parent"
-              dragHandleClassName="retro-header" 
-              enableUserSelectHack={false} 
+              minWidth={600} minHeight={400} bounds="parent"
+              dragHandleClassName="retro-header" enableUserSelectHack={false} 
               style={{ zIndex: 1000, pointerEvents: "auto" }}
             >
-              <div 
-                style={{ width: "100%", height: "100%" }}
-                onWheel={(e) => e.stopPropagation()} 
-              >
+              <div style={{ width: "100%", height: "100%" }} onWheel={(e) => e.stopPropagation()}>
                 {activeWindow === "inventory" && <InventoryPage isOverlay onClose={handleCloseApp} />}
                 {activeWindow === "shop" && <ShopPage isOverlay onClose={handleCloseApp} />}
                 {activeWindow === "quests" && <QuestLogPage isOverlay onClose={handleCloseApp} />}
