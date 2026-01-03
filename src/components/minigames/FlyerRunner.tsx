@@ -22,11 +22,11 @@ export default function FlyerRunner() {
   const obstacles = useRef<{ id: number; x: number; y: number; z: number; type: 'block' | 'coin' }[]>([]);
   const tunnelY = useRef(0); 
 
-  // --- CONTROLS ---
+  // --- MOUSE CONTROL ---
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isPlaying) return;
     const xPercent = (e.clientX / window.innerWidth) * 100;
-    playerX.current = Math.max(10, Math.min(90, xPercent));
+    playerX.current = Math.max(15, Math.min(85, xPercent));
   }, [isPlaying]);
 
   // --- ENGINE LOOP ---
@@ -34,27 +34,28 @@ export default function FlyerRunner() {
     if (!isPlaying) return;
     frameCount.current++;
     
-    // 1. SCROLL TEXTURE (Forward Speed)
+    // 1. SCROLL (Move Forward)
     gameSpeed.current = Math.min(MAX_SPEED, gameSpeed.current + 0.0005);
-    tunnelY.current += (25 * gameSpeed.current); 
+    // Move 20px per frame, reset every 1000px (assuming seamless texture)
+    tunnelY.current = (tunnelY.current + (20 * gameSpeed.current)) % 1024; 
 
     // 2. SPAWN OBJECTS
     if (frameCount.current % Math.floor(OBSTACLE_SPAWN_RATE / gameSpeed.current) === 0) {
       obstacles.current.push({
         id: Date.now(),
-        x: (Math.random() * 100) - 50, // Wider spawn area (-50 to 50)
-        y: (Math.random() * 40) - 20,
+        x: (Math.random() * 80) - 40,
+        y: (Math.random() * 30) - 15,
         z: 3000, 
         type: Math.random() > 0.8 ? 'coin' : 'block'
       });
     }
 
     // 3. MOVE OBJECTS
-    obstacles.current.forEach(obs => obs.z -= (30 * gameSpeed.current));
+    obstacles.current.forEach(obs => obs.z -= (25 * gameSpeed.current));
     obstacles.current = obstacles.current.filter(obs => obs.z > -100);
 
     // 4. COLLISION
-    const playerGameX = (playerX.current - 50) * 1.2; 
+    const playerGameX = (playerX.current - 50) * 1.5; 
     obstacles.current.forEach(obs => {
         if (obs.z < 100 && obs.z > -50) { 
              if (Math.abs(obs.x - playerGameX) < 15) {
@@ -106,49 +107,73 @@ export default function FlyerRunner() {
                 style={{
                     transform: `
                         translateX(${-(playerX.current - 50) * 2}px) 
-                        rotateZ(${-(playerX.current - 50) * 0.2}deg)
+                        rotateZ(${-(playerX.current - 50) * 0.25}deg)
                     `
                 }}
             >
-                {/* --- 1. LEFT WALL (Shows Left Half of Image) --- */}
+                {/* === LEFT WALL === */}
                 <div className="wall left-wall">
-                    <div 
-                        className="wall-texture" 
-                        style={{ 
-                            backgroundPositionY: `${tunnelY.current}px`,
-                            backgroundPositionX: '0%' // FORCE LEFT SIDE
-                        }}
-                    />
-                     <div className="wall-mask" />
-                </div>
-
-                {/* --- 2. RIGHT WALL (Shows Right Half of Image) --- */}
-                <div className="wall right-wall">
-                    <div 
-                        className="wall-texture" 
-                        style={{ 
-                            backgroundPositionY: `${tunnelY.current}px`, 
-                            backgroundPositionX: '100%' // FORCE RIGHT SIDE
-                        }}
-                    />
+                    <div className="texture-container">
+                        <div 
+                            className="texture-layer"
+                            style={{ 
+                                backgroundImage: "url('/assets/city_loop.png')",
+                                backgroundPositionX: '0%', // SHOW LEFT HALF
+                                transform: `translateY(${tunnelY.current}px) scaleY(-1)` // SCROLL + FLIP VERTICAL
+                            }}
+                        />
+                        {/* Second copy for seamless looping */}
+                        <div 
+                            className="texture-layer"
+                            style={{ 
+                                backgroundImage: "url('/assets/city_loop.png')",
+                                backgroundPositionX: '0%', // SHOW LEFT HALF
+                                transform: `translateY(${tunnelY.current - 1024}px) scaleY(-1)` // OFFSET BY 1024px
+                            }}
+                        />
+                    </div>
                     <div className="wall-mask" />
                 </div>
 
-                {/* --- 3. FLOOR & CEILING --- */}
+                {/* === RIGHT WALL === */}
+                <div className="wall right-wall">
+                    <div className="texture-container">
+                        <div 
+                            className="texture-layer"
+                            style={{ 
+                                backgroundImage: "url('/assets/city_loop.png')",
+                                backgroundPositionX: '100%', // SHOW RIGHT HALF
+                                transform: `translateY(${tunnelY.current}px) scaleY(-1)` // SCROLL + FLIP VERTICAL
+                            }}
+                        />
+                        {/* Second copy for seamless looping */}
+                         <div 
+                            className="texture-layer"
+                            style={{ 
+                                backgroundImage: "url('/assets/city_loop.png')",
+                                backgroundPositionX: '100%', // SHOW RIGHT HALF
+                                transform: `translateY(${tunnelY.current - 1024}px) scaleY(-1)`
+                            }}
+                        />
+                    </div>
+                    <div className="wall-mask" />
+                </div>
+
+                {/* --- FLOOR & CEILING --- */}
                 <div className="floor-plane" />
                 <div className="ceiling-plane" />
 
-                {/* --- 4. GAME OBJECTS --- */}
+                {/* --- OBJECTS --- */}
                 {obstacles.current.map(obs => (
                     <div
                         key={obs.id}
                         className="game-object"
                         style={{
                             transform: `translate3d(${obs.x * 10}px, ${obs.y * 5}px, ${-obs.z}px)`,
-                            opacity: obs.z > 2500 ? 0 : 1,
+                            opacity: obs.z > 2000 ? 0 : 1,
                             borderColor: obs.type === 'coin' ? '#fbbf24' : '#ef4444',
-                            boxShadow: obs.type === 'coin' ? '0 0 20px #fbbf24' : '0 0 20px #ef4444',
-                            borderRadius: obs.type === 'coin' ? '50%' : '4px'
+                            boxShadow: obs.type === 'coin' ? '0 0 15px #fbbf24' : '0 0 15px #ef4444',
+                            borderRadius: obs.type === 'coin' ? '50%' : '2px'
                         }}
                     >
                         {obs.type === 'coin' ? '$' : 'X'}
@@ -156,7 +181,6 @@ export default function FlyerRunner() {
                 ))}
             </div>
             
-            {/* Fog to hide the start of the tunnel */}
             <div className="fog-overlay" />
         </div>
 
@@ -171,7 +195,6 @@ export default function FlyerRunner() {
             >
                 <div className="engine-flame" />
             </div>
-
             <div className="score">SCORE: {score.toString().padStart(6, '0')}</div>
 
             {!isPlaying && (
@@ -197,62 +220,61 @@ export default function FlyerRunner() {
             /* --- WALL GEOMETRY --- */
             .wall {
                 position: absolute;
-                top: -100%; bottom: -100%; /* Vertical Overhang */
-                width: 5000px; /* Length of tunnel */
-                background: #000;
+                top: -50%; bottom: -50%;
+                width: 4000px; 
+                background: #050505;
                 backface-visibility: visible;
                 overflow: hidden;
             }
 
             .left-wall {
-                /* Positioned OFF SCREEN to the left to create width */
-                left: -50%; 
+                left: -50%; /* Push it wide */
                 transform-origin: left center;
                 transform: rotateY(90deg);
-                border-bottom: 4px solid #0f0;
+                border-bottom: 2px solid #0f0;
             }
 
             .right-wall {
-                /* Positioned OFF SCREEN to the right to create width */
-                right: -50%; 
+                right: -50%; /* Push it wide */
                 transform-origin: right center;
                 transform: rotateY(-90deg);
-                border-bottom: 4px solid #0f0;
+                border-bottom: 2px solid #0f0;
             }
 
-            /* --- TEXTURE MAPPING --- */
-            .wall-texture {
+            /* --- TEXTURE HANDLING --- */
+            .texture-container {
                 width: 100%; height: 100%;
-                background-image: url('/assets/city_loop.png');
+                position: relative;
+            }
+
+            .texture-layer {
+                position: absolute;
+                top: 0; left: 0;
+                width: 100%; height: 1024px; /* MUST MATCH TEXTURE HEIGHT or LOOP POINT */
                 
-                /* CRITICAL: 
-                   Width 200% means the image is twice as wide as the wall.
-                   Since we set pos-x to 0% (Left) or 100% (Right), 
-                   we only see half the image per wall. 
-                */
-                background-size: 200% auto; 
                 background-repeat: repeat-y;
+                /* 200% Width: This ensures we crop exactly half the image */
+                background-size: 200% 100%; 
                 
-                opacity: 0.9;
-                will-change: background-position;
+                opacity: 0.8;
+                will-change: transform;
             }
 
             .wall-mask {
                 position: absolute; inset: 0;
-                /* Darken the far end of the wall */
-                background: linear-gradient(to right, transparent 20%, #000 95%);
+                background: linear-gradient(to right, transparent 10%, #000 95%);
                 pointer-events: none;
             }
 
             /* --- FLOOR & CEILING --- */
             .floor-plane {
-                position: absolute; bottom: -25%; left: -50%; width: 200%; height: 200%;
+                position: absolute; bottom: -20%; left: -50%; width: 200%; height: 200%;
                 transform-origin: bottom center; transform: rotateX(90deg);
                 background: linear-gradient(rgba(0,0,0,0.9), #000);
                 pointer-events: none;
             }
             .ceiling-plane {
-                position: absolute; top: -25%; left: -50%; width: 200%; height: 200%;
+                position: absolute; top: -20%; left: -50%; width: 200%; height: 200%;
                 transform-origin: top center; transform: rotateX(-90deg);
                 background: #000;
                 pointer-events: none;
@@ -261,15 +283,16 @@ export default function FlyerRunner() {
             /* --- OBJECTS --- */
             .game-object {
                 position: absolute; top: 50%; left: 50%;
-                width: 100px; height: 100px;
+                width: 80px; height: 80px;
                 display: flex; align-items: center; justify-content: center;
                 color: white; font-weight: bold; font-family: monospace; font-size: 30px;
                 transform-style: preserve-3d;
+                backface-visibility: visible;
             }
 
             .fog-overlay {
                 position: absolute; inset: 0;
-                background: radial-gradient(circle, transparent 30%, black 90%);
+                background: radial-gradient(circle, transparent 40%, black 90%);
                 pointer-events: none; z-index: 10;
             }
 
