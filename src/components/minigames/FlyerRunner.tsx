@@ -4,9 +4,8 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useGameState } from "@/context/GameStateContext";
 
 // --- CONFIG ---
-const OBSTACLE_SPAWN_RATE = 50;
-const INITIAL_SPEED = 0.5;
-const MAX_SPEED = 2.0;
+const OBSTACLE_SPAWN_RATE = 60;
+const MAX_SPEED = 2.5;
 
 export default function FlyerRunner() {
   const { session } = useGameState();
@@ -18,16 +17,16 @@ export default function FlyerRunner() {
   // --- REFS ---
   const reqRef = useRef<number>(0);
   const playerX = useRef(50); 
-  const gameSpeed = useRef(INITIAL_SPEED);
+  const gameSpeed = useRef(1.0);
   const frameCount = useRef(0);
   const obstacles = useRef<{ id: number; x: number; y: number; z: number; type: 'block' | 'coin' }[]>([]);
-  const tunnelZ = useRef(0); // Position of the texture scroll
+  const tunnelZ = useRef(0); // Texture Scroll Position
 
-  // --- MOUSE CONTROL ---
+  // --- MOUSE CONTROL (Banks the Camera) ---
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isPlaying) return;
     const xPercent = (e.clientX / window.innerWidth) * 100;
-    playerX.current = Math.max(10, Math.min(90, xPercent));
+    playerX.current = Math.max(15, Math.min(85, xPercent));
   }, [isPlaying]);
 
   // --- ENGINE LOOP ---
@@ -35,31 +34,30 @@ export default function FlyerRunner() {
     if (!isPlaying) return;
     frameCount.current++;
     
-    // 1. SCROLL THE TUNNEL TEXTURE
-    // We move the background-position-x to simulate moving forward
-    gameSpeed.current = Math.min(MAX_SPEED, gameSpeed.current + 0.0002);
-    tunnelZ.current -= (20 * gameSpeed.current); 
+    // 1. SCROLL THE TUNNEL
+    gameSpeed.current = Math.min(MAX_SPEED, gameSpeed.current + 0.0005);
+    tunnelZ.current -= (15 * gameSpeed.current); 
 
     // 2. SPAWN OBJECTS
     if (frameCount.current % Math.floor(OBSTACLE_SPAWN_RATE / gameSpeed.current) === 0) {
       obstacles.current.push({
         id: Date.now(),
-        x: (Math.random() * 60) - 30, // -30 to 30
-        y: (Math.random() * 20) - 10, 
-        z: 2000, // Spawn far away
+        x: (Math.random() * 80) - 40,
+        y: (Math.random() * 30) - 15,
+        z: 2000, 
         type: Math.random() > 0.8 ? 'coin' : 'block'
       });
     }
 
     // 3. MOVE OBJECTS
-    obstacles.current.forEach(obs => obs.z -= (15 * gameSpeed.current));
-    obstacles.current = obstacles.current.filter(obs => obs.z > -200);
+    obstacles.current.forEach(obs => obs.z -= (20 * gameSpeed.current));
+    obstacles.current = obstacles.current.filter(obs => obs.z > -100);
 
     // 4. COLLISION
     const playerGameX = (playerX.current - 50) * 0.8; 
     obstacles.current.forEach(obs => {
-        if (obs.z < 50 && obs.z > -50) { // Crossing player plane
-             if (Math.abs(obs.x - playerGameX) < 10) {
+        if (obs.z < 80 && obs.z > -20) { 
+             if (Math.abs(obs.x - playerGameX) < 12) {
                   if (obs.type === 'coin') {
                       obs.z = -999;
                       setScore(s => s + 50);
@@ -84,7 +82,7 @@ export default function FlyerRunner() {
     setScore(0);
     setGameOver(false);
     obstacles.current = [];
-    gameSpeed.current = INITIAL_SPEED;
+    gameSpeed.current = 1.0;
     playerX.current = 50;
     setIsPlaying(true);
   };
@@ -103,60 +101,68 @@ export default function FlyerRunner() {
         {/* --- 3D SCENE --- */}
         <div className="scene-3d">
             
-            {/* 1. LEFT WALL (The Image) */}
+            {/* CAMERA RIG (Moves based on mouse) */}
             <div 
-                className="wall left-wall"
-                style={{ backgroundPositionX: `${tunnelZ.current}px` }} // Animate horizontal scroll
-            />
-
-            {/* 2. RIGHT WALL (Mirrored Image) */}
-            <div 
-                className="wall right-wall"
-                style={{ backgroundPositionX: `${tunnelZ.current}px` }} // Animate horizontal scroll
-            />
-
-            {/* 3. FLOOR (Wireframe Grid) */}
-            <div className="floor-plane">
-                <div 
-                    className="floor-grid"
-                    style={{ backgroundPositionY: `${-tunnelZ.current}px` }} // Sync floor speed
-                />
-            </div>
-
-            {/* 4. OBJECTS */}
-            {obstacles.current.map(obs => (
-                <div
-                    key={obs.id}
-                    className="game-object"
-                    style={{
-                        transform: `translate3d(${obs.x * 10}px, ${obs.y * 5}px, ${-obs.z}px)`,
-                        borderColor: obs.type === 'coin' ? '#fbbf24' : '#ef4444',
-                        background: obs.type === 'coin' ? 'rgba(251, 191, 36, 0.2)' : 'rgba(239, 68, 68, 0.2)',
-                        borderRadius: obs.type === 'coin' ? '50%' : '2px',
-                        boxShadow: obs.type === 'coin' ? '0 0 20px #fbbf24' : '0 0 20px #ef4444'
-                    }}
-                >
-                    {obs.type === 'coin' ? '$' : 'X'}
+                className="camera-rig"
+                style={{
+                    transform: `
+                        translateX(${-(playerX.current - 50) * 0.8}px) 
+                        rotateZ(${-(playerX.current - 50) * 0.3}deg)
+                    `
+                }}
+            >
+                {/* --- 1. LEFT WALL --- */}
+                <div className="wall left-wall">
+                    <div 
+                        className="wall-texture" 
+                        style={{ backgroundPositionX: `${tunnelZ.current}px` }} 
+                    />
                 </div>
-            ))}
 
-            {/* 5. FOG (Hides the end) */}
+                {/* --- 2. RIGHT WALL --- */}
+                <div className="wall right-wall">
+                    <div 
+                        className="wall-texture mirror" 
+                        style={{ backgroundPositionX: `${tunnelZ.current}px` }} 
+                    />
+                </div>
+
+                {/* --- 3. FLOOR & CEILING (Framing) --- */}
+                <div className="floor-plane" />
+                <div className="ceiling-plane" />
+
+                {/* --- 4. GAME OBJECTS --- */}
+                {obstacles.current.map(obs => (
+                    <div
+                        key={obs.id}
+                        className="game-object"
+                        style={{
+                            transform: `translate3d(${obs.x * 10}px, ${obs.y * 5}px, ${-obs.z}px)`,
+                            opacity: obs.z > 1500 ? 0 : 1,
+                            borderColor: obs.type === 'coin' ? '#fbbf24' : '#ef4444',
+                            boxShadow: obs.type === 'coin' ? '0 0 15px #fbbf24' : '0 0 15px #ef4444',
+                            borderRadius: obs.type === 'coin' ? '50%' : '2px'
+                        }}
+                    >
+                        {obs.type === 'coin' ? '$' : 'X'}
+                    </div>
+                ))}
+
+            </div>
+            
             <div className="fog-overlay" />
         </div>
 
-
-        {/* --- HUD --- */}
+        {/* --- UI --- */}
         <div className="hud-layer">
-            {/* Player Ship */}
+            {/* RETICLE */}
             <div 
-                className="player-ship"
+                className="reticle"
                 style={{
                     left: `${playerX.current}%`,
-                    transform: `translateX(-50%) rotate(${(playerX.current - 50) * 0.4}deg)`
+                    transform: `translateX(-50%) rotate(${(playerX.current - 50) * 0.5}deg)`
                 }}
-            >
-                <div className="engine-glow" />
-            </div>
+            />
 
             <div className="score">SCORE: {score.toString().padStart(6, '0')}</div>
 
@@ -172,143 +178,116 @@ export default function FlyerRunner() {
 
         <style jsx>{`
             .game-viewport {
-                width: 100vw;
-                height: 100vh;
-                background: #000;
-                overflow: hidden;
-                perspective: 600px; /* CAMERA DEPTH */
+                width: 100vw; height: 100vh;
+                background: #000; overflow: hidden;
+                perspective: 600px;
+                cursor: none;
             }
-
             .scene-3d {
-                width: 100%;
-                height: 100%;
-                position: relative;
+                width: 100%; height: 100%;
                 transform-style: preserve-3d;
             }
-
-            /* --- WALLS --- */
-            .wall {
-                position: absolute;
-                top: 0;
-                bottom: 0;
-                width: 4000px; /* Long wall length */
-                
-                /* TEXTURE MAPPING */
-                background-image: url('/assets/city_loop.png');
-                background-repeat: repeat-x; /* Tile horizontally */
-                background-size: auto 100%; /* Keep height 100%, let width scale naturally */
-                
-                backface-visibility: visible;
-                opacity: 0.8;
-                border-bottom: 2px solid #00ff00; /* Neon baseline */
+            .camera-rig {
+                width: 100%; height: 100%;
+                transform-style: preserve-3d;
+                transition: transform 0.1s linear; /* Smooth banking */
             }
 
+            /* --- WALL GEOMETRY --- */
+            .wall {
+                position: absolute;
+                top: -50%; bottom: -50%;
+                width: 4000px; /* Long Wall */
+                background: #111;
+                backface-visibility: visible; /* CRITICAL FIX for disappearing wall */
+            }
             .left-wall {
                 left: 0;
                 transform-origin: left center;
-                /* Rotate 90deg to face center */
                 transform: rotateY(90deg);
+                border-bottom: 2px solid #0f0;
             }
-
             .right-wall {
                 right: 0;
                 transform-origin: right center;
-                /* Rotate -90deg to face center */
-                transform: rotateY(-90deg) scaleX(-1); /* Mirror texture */
+                transform: rotateY(-90deg);
+                border-bottom: 2px solid #0f0;
             }
 
-            /* --- FLOOR --- */
+            /* --- TEXTURE MAPPING --- */
+            .wall-texture {
+                width: 100%; height: 100%;
+                background-image: url('/assets/city_loop.png');
+                
+                /* SPLIT FIX: Zoom in to 200% so we only see half the image per wall */
+                background-size: 200% 100%; 
+                background-position: left center; /* Start from left edge */
+                background-repeat: repeat-x;
+                
+                opacity: 0.6;
+                
+                /* FLIP FIX: Flip Vertical (-scaleY) to put 'inside' pixels at top */
+                transform: scaleY(-1); 
+            }
+
+            .mirror {
+                /* RIGHT WALL FIX: Flip X to mirror the left wall perfectly */
+                /* Keep the Y flip for vertical consistency */
+                transform: scaleX(-1) scaleY(-1); 
+            }
+
+            /* --- FLOOR & CEILING --- */
             .floor-plane {
-                position: absolute;
-                bottom: -20%; /* Lower floor slightly for better view */
-                left: -50%;
-                width: 200%;
-                height: 100%;
-                transform: rotateX(90deg);
-                transform-origin: bottom center;
-                background: linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 50%);
+                position: absolute; bottom: 0; left: 0; width: 100%; height: 200%;
+                transform-origin: bottom center; transform: rotateX(90deg);
+                background: linear-gradient(rgba(0,0,0,0.8), #000);
                 pointer-events: none;
             }
-
-            .floor-grid {
-                width: 100%;
-                height: 4000px;
-                background: 
-                    linear-gradient(90deg, transparent 0%, rgba(0,255,0,0.2) 1px, transparent 2px),
-                    linear-gradient(180deg, transparent 0%, rgba(0,255,0,0.2) 1px, transparent 2px);
-                background-size: 100px 100px;
+            .ceiling-plane {
+                position: absolute; top: 0; left: 0; width: 100%; height: 200%;
+                transform-origin: top center; transform: rotateX(-90deg);
+                background: #000;
+                pointer-events: none;
             }
 
             /* --- OBJECTS --- */
             .game-object {
-                position: absolute;
-                top: 50%;
-                left: 50%;
+                position: absolute; top: 50%; left: 50%;
                 width: 60px; height: 60px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
-                font-family: monospace;
-                font-weight: bold;
-                font-size: 24px;
+                display: flex; align-items: center; justify-content: center;
+                color: white; font-weight: bold; font-family: monospace; font-size: 24px;
                 transform-style: preserve-3d;
             }
 
             .fog-overlay {
-                position: absolute;
-                inset: 0;
-                background: radial-gradient(circle, transparent 30%, black 90%);
-                pointer-events: none;
-                z-index: 10;
+                position: absolute; inset: 0;
+                background: radial-gradient(circle, transparent 20%, black 80%);
+                pointer-events: none; z-index: 10;
             }
 
             /* --- HUD --- */
-            .hud-layer { position: absolute; inset: 0; pointer-events: none; z-index: 20; }
-            
-            .player-ship {
-                position: absolute;
-                bottom: 80px;
+            .hud-layer { position: absolute; inset: 0; z-index: 50; }
+            .reticle {
+                position: absolute; bottom: 80px;
                 width: 0; height: 0;
                 border-left: 20px solid transparent;
                 border-right: 20px solid transparent;
-                border-bottom: 50px solid #00ff00;
-                filter: drop-shadow(0 0 10px #00ff00);
+                border-bottom: 50px solid #0f0;
+                filter: drop-shadow(0 0 10px #0f0);
             }
-
-            .engine-glow {
-                position: absolute;
-                top: 50px; left: -10px;
-                width: 20px; height: 10px;
-                background: cyan;
-                filter: blur(5px);
-            }
-
-            .score {
-                position: absolute; top: 20px; left: 20px;
-                color: #00ff00; font-family: monospace; font-size: 24px;
-                text-shadow: 0 0 10px #00ff00;
-            }
-
+            .score { position: absolute; top: 20px; left: 20px; color: #0f0; font-family: monospace; font-size: 24px; }
             .menu {
-                position: absolute; inset: 0;
-                background: rgba(0,0,0,0.8);
-                display: flex; flex-direction: column;
-                align-items: center; justify-content: center;
+                position: absolute; inset: 0; background: rgba(0,0,0,0.85);
+                display: flex; flex-direction: column; align-items: center; justify-content: center;
                 pointer-events: auto;
             }
-
-            .title {
-                color: #00ff00; font-family: monospace; font-size: 4rem;
-                margin-bottom: 2rem; text-shadow: 0 0 20px rgba(0,255,0,0.5);
-            }
-
+            .title { color: #0f0; font-family: monospace; font-size: 4rem; margin-bottom: 2rem; }
             .btn {
-                background: transparent; border: 2px solid #00ff00;
-                color: #00ff00; padding: 1rem 3rem; font-family: monospace;
-                font-size: 1.5rem; cursor: pointer; transition: 0.2s;
+                background: transparent; border: 2px solid #0f0; color: #0f0;
+                padding: 1rem 3rem; font-family: monospace; font-size: 1.5rem;
+                cursor: pointer;
             }
-            .btn:hover { background: #00ff00; color: black; box-shadow: 0 0 30px #00ff00; }
+            .btn:hover { background: #0f0; color: black; }
         `}</style>
     </div>
   );
