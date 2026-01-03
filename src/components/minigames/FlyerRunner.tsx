@@ -21,7 +21,7 @@ export default function FlyerRunner() {
   const frameCount = useRef(0);
   const obstacles = useRef<{ id: number; x: number; y: number; z: number; type: 'block' | 'coin' }[]>([]);
   
-  // CHANGED: We now track X (Horizontal) scroll for distance
+  // X-Axis Scroll (Distance)
   const tunnelDistance = useRef(0); 
 
   // --- MOUSE CONTROL ---
@@ -36,9 +36,9 @@ export default function FlyerRunner() {
     if (!isPlaying) return;
     frameCount.current++;
     
-    // 1. SCROLL DISTANCE (X-Axis now!)
+    // 1. SCROLL DISTANCE
     gameSpeed.current = Math.min(MAX_SPEED, gameSpeed.current + 0.0005);
-    // Move texture horizontally to simulate depth
+    // Scroll speed
     tunnelDistance.current -= (25 * gameSpeed.current); 
 
     // 2. SPAWN OBJECTS
@@ -115,29 +115,45 @@ export default function FlyerRunner() {
             >
                 {/* --- 1. LEFT WALL --- */}
                 <div className="wall left-wall">
-                    <div className="texture-cropper" style={{ left: '0%' }}>
+                    <div className="texture-container">
+                        {/* LOGIC:
+                           1. Width 200%: The image is double the size of the wall.
+                           2. Left 0%: We see the LEFT HALF of the image.
+                           3. Flip Horizontal: Puts the "Road" (Center of image) at the far end of the tunnel.
+                        */}
                         <div 
-                            className="texture-scroller"
+                            className="moving-strip"
                             style={{ 
-                                backgroundPositionX: `${tunnelDistance.current}px`,
-                                // FLIP HORIZONTAL to push inside -> outside
-                                transform: 'scaleX(-1)' 
+                                transform: `translateX(${tunnelDistance.current}px) scaleX(-1)` 
                             }}
-                        />
+                        >
+                            {/* Repeated images for infinite loop */}
+                            <img src="/assets/city_loop.png" className="texture-img" alt="" />
+                            <img src="/assets/city_loop.png" className="texture-img" alt="" />
+                            <img src="/assets/city_loop.png" className="texture-img" alt="" />
+                        </div>
                     </div>
                 </div>
 
                 {/* --- 2. RIGHT WALL --- */}
                 <div className="wall right-wall">
-                    <div className="texture-cropper" style={{ left: '-100%' }}>
-                         <div 
-                            className="texture-scroller"
+                    <div className="texture-container">
+                        {/* LOGIC:
+                           1. Width 200%: Image is double size.
+                           2. Left -100%: Shifts the image so we see the RIGHT HALF.
+                           3. Flip Horizontal: Puts the "Road" (Center of image) at the far end of the tunnel.
+                        */}
+                        <div 
+                            className="moving-strip"
                             style={{ 
-                                backgroundPositionX: `${tunnelDistance.current}px`,
-                                // FLIP HORIZONTAL to push inside -> outside
-                                transform: 'scaleX(-1)'
+                                left: '-100%', 
+                                transform: `translateX(${tunnelDistance.current}px) scaleX(-1)` 
                             }}
-                        />
+                        >
+                            <img src="/assets/city_loop.png" className="texture-img" alt="" />
+                            <img src="/assets/city_loop.png" className="texture-img" alt="" />
+                            <img src="/assets/city_loop.png" className="texture-img" alt="" />
+                        </div>
                     </div>
                 </div>
 
@@ -203,11 +219,11 @@ export default function FlyerRunner() {
             /* --- WALL GEOMETRY --- */
             .wall {
                 position: absolute;
-                top: -50%; bottom: -50%; /* Make walls tall */
-                width: 5000px; /* Make walls LONG (into distance) */
+                top: -50%; bottom: -50%;
+                width: 5000px; /* Long tunnel */
                 background: #000;
                 backface-visibility: visible;
-                overflow: hidden; 
+                overflow: hidden; /* Crops the texture */
             }
 
             .left-wall {
@@ -224,26 +240,29 @@ export default function FlyerRunner() {
                 border-bottom: 2px solid #0f0;
             }
 
-            /* --- SPLIT & SCROLL LOGIC --- */
-            .texture-cropper {
+            /* --- TEXTURE SYSTEM --- */
+            .texture-container {
                 position: absolute;
                 top: 0; bottom: 0;
-                width: 200%; /* Crop half the image */
+                left: 0; 
+                width: 200%; /* The container is double the width of the wall */
+                display: flex;
             }
 
-            .texture-scroller {
-                width: 100%;
+            .moving-strip {
+                display: flex;
                 height: 100%;
-                background-image: url('/assets/city_loop.png');
-                
-                /* FIX 1: Tile Horizontally (repeat-x) for distance */
-                background-repeat: repeat-x;
-                
-                /* FIX 2: Fit Height, tile Width */
-                background-size: auto 100%; 
-                
-                opacity: 0.9;
-                will-change: background-position;
+                position: absolute;
+                top: 0; left: 0;
+                /* No background-image here, we use img tags */
+                will-change: transform;
+            }
+
+            .texture-img {
+                height: 100%;
+                width: auto; /* Maintain aspect ratio */
+                display: block;
+                /* Crucial: ensure images butt up against each other */
             }
 
             /* --- FLOOR & CEILING --- */
