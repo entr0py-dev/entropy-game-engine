@@ -38,7 +38,7 @@ function GameEngineContent() {
   // --- STATE ---
   const isEmbed = searchParams.get("embed") === "true";
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  
+   
   // Window State
   const [winState, setWinState] = useState({
     x: 50,
@@ -173,24 +173,26 @@ function GameEngineContent() {
                 <DebugButton label="Test Drop (Med)" onClick={() => handlePongWin('medium')} />
               </div>
               
-             <div style={{ position: "absolute", inset: 0, zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-  <div style={{ padding: "40px", backgroundColor: "black", border: "2px solid #00ff00", textAlign: "center" }}>
-    <h1 style={{ color: "white", marginBottom: "20px", fontFamily: "monospace" }}>HOME_STUDIO_OFFLINE</h1>
-    
-    <Link href="/arcade" style={{ 
-        display: "inline-block", 
-        padding: "10px 20px", 
-        backgroundColor: "#00ff00", 
-        color: "black", 
-        fontWeight: "bold", 
-        fontFamily: "monospace",
-        textDecoration: "none"
-    }}>
-      ENTER ARCADE &gt;
-    </Link>
-  </div>
-</div>
-      
+              {/* HOME STUDIO / ARCADE LINK */}
+              <div style={{ position: "absolute", inset: 0, zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ padding: "40px", backgroundColor: "black", border: "2px solid #00ff00", textAlign: "center" }}>
+                    <h1 style={{ color: "white", marginBottom: "20px", fontFamily: "monospace" }}>HOME_STUDIO_OFFLINE</h1>
+                    
+                    <Link href="/arcade" style={{ 
+                        display: "inline-block", 
+                        padding: "10px 20px", 
+                        backgroundColor: "#00ff00", 
+                        color: "black", 
+                        fontWeight: "bold", 
+                        fontFamily: "monospace",
+                        textDecoration: "none"
+                    }}>
+                      ENTER ARCADE &gt;
+                    </Link>
+                  </div>
+              </div>
+            </>
+          )}
 
           {/* DRAGGABLE WINDOW */}
           {activeWindow !== "none" && (
