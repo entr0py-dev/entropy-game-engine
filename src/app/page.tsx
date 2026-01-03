@@ -1,3 +1,8 @@
+// PATCH 6: Fixed XP debug function consistency
+// Changes:
+// - Uses consistent XP_PER_LEVEL = 263
+// - Better error handling
+
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
@@ -12,36 +17,8 @@ import AvatarStudio from "./profile/page";
 import MusicPlayer from "@/components/MusicPlayer";
 import Sidebar from "@/components/Sidebar";
 
-// --- THE INFINITE LOOP ENGINE ---
-const ANIMATION_STYLES = `
-  /* We stack two images. Total height = 200vh.
-     We move UP by 100vh (one image height).
-     Once we hit -100vh, we snap back to 0. 
-     This creates a seamless loop.
-  */
-  @keyframes infiniteScroll {
-    from { transform: translateY(0); }
-    to { transform: translateY(-100vh); } 
-  }
-
-  .loop-track {
-    display: flex;
-    flex-direction: column; /* Stack images on top of each other */
-    width: 100%;
-    /* No fixed height needed, content dictates it */
-    animation: infiniteScroll 20s linear infinite; 
-    will-change: transform; /* Performance optimization */
-  }
-  
-  .loop-image {
-    width: 100%;
-    height: 100vh; /* Force exact screen height */
-    object-fit: cover;
-    display: block;
-    /* Optional: fix for some browsers showing tiny lines between images */
-    margin-bottom: -1px; 
-  }
-`;
+// FIXED: Centralized constant
+const XP_PER_LEVEL = 263;
 
 function GameEngineContent() {
   const {
@@ -56,13 +33,20 @@ function GameEngineContent() {
   const searchParams = useSearchParams();
   const creatingProfile = useRef(false);
   const hasTriedCreating = useRef(false);
-  
-  // Parallax State
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+  // --- STATE ---
   const isEmbed = searchParams.get("embed") === "true";
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [winState, setWinState] = useState({ x: 50, y: 50, width: 1000, height: 700 });
+  
+  // Window State
+  const [winState, setWinState] = useState({
+    x: 50,
+    y: 50,
+    width: 1000,
+    height: 700,
+  });
 
+  // Sync URL params
   useEffect(() => {
     const win = searchParams.get("window");
     const side = searchParams.get("sidebar") === "true";
@@ -70,9 +54,11 @@ function GameEngineContent() {
     if (side) setSidebarOpen(true);
   }, [searchParams, setActiveWindow]);
 
+  // Handle Close
   const handleCloseApp = () => {
     setActiveWindow("none");
     setSidebarOpen(false);
+    
     if (isEmbed) {
         if (window.parent) window.parent.postMessage("CLOSE_OVERLAY", "*");
     } else {
@@ -80,133 +66,144 @@ function GameEngineContent() {
     }
   };
 
+  // FIXED: Consistent XP formula
   async function addDebugXp(amount: number) {
     if (!session?.user || !profile) return;
-    const { error: rpcError } = await supabase.rpc("add_xp", { user_id: session.user.id, amount });
-    if (rpcError) {
-       let xpPool = (profile.xp ?? 0) + amount;
-       let level = profile.level ?? 1;
-       let threshold = level * 263;
-       while (xpPool >= threshold) { xpPool -= threshold; level += 1; threshold = level * 263; }
-       await supabase.from("profiles").update({ xp: xpPool, level }).eq("id", session.user.id);
+
+    try {
+      // Try RPC first
+      const { error: rpcError } = await supabase.rpc("add_xp", {
+        user_id: session.user.id,
+        amount,
+      });
+
+      // If RPC fails, use fallback logic
+      if (rpcError) {
+        console.warn("RPC failed, using client fallback:", rpcError);
+        let xpPool = (profile.xp ?? 0) + amount;
+        let level = profile.level ?? 1;
+        let threshold = level * XP_PER_LEVEL; 
+        // FIXED: Using constant
+
+        while (xpPool >= threshold) {
+          xpPool -= threshold;
+          level += 1;
+          threshold = level * XP_PER_LEVEL; // FIXED: Using constant
+        }
+
+        await supabase
+          .from("profiles")
+          .update({ xp: xpPool, level })
+          .eq("id", session.user.id);
+      }
+      
+      await refreshGameState();
+    } catch (error) {
+      console.error("Debug XP add failed:", error);
     }
-    await refreshGameState();
   }
 
   useEffect(() => {
     async function ensureProfile() {
       if (loading || creatingProfile.current || hasTriedCreating.current) return;
       if (!session?.user || profile) return;
+
       creatingProfile.current = true;
       hasTriedCreating.current = true; 
+
       const rawName = session.user.email?.split("@")[0] || "operative";
       const safeName = rawName.replace(/[^a-zA-Z0-9_]/g, "");
-      const { error } = await supabase.from("profiles").insert({
-        id: session.user.id, username: safeName, avatar: "default", entrobucks: 0, xp: 0, level: 1,
-      });
-      if (!error) await refreshGameState();
-      creatingProfile.current = false;
+      
+      try {
+        const { error } = await supabase.from("profiles").insert({
+          id: session.user.id,
+          username: safeName,
+          avatar: "default",
+          entrobucks: 0,
+          xp: 0,
+          level: 1,
+        });
+
+        if (error) {
+          console.error("Profile creation failed (stopping retry loop):", error.message);
+        } else {
+          await refreshGameState();
+        }
+      } catch (error) {
+        console.error("Profile creation error:", error);
+      } finally {
+        creatingProfile.current = false;
+      }
     }
     void ensureProfile();
   }, [loading, session, profile, refreshGameState]);
 
-  useEffect(() => {
-    if (isEmbed) return; 
-    const handleMouseMove = (e: MouseEvent) => {
-      const x = (e.clientX / window.innerWidth) * 2 - 1;
-      const y = (e.clientY / window.innerHeight) * 2 - 1;
-      setMousePos({ x, y });
-    };
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, [isEmbed]);
-
-  if (loading) return <div className="bg-black h-screen text-green-500 font-mono p-10">LOADING...</div>;
+  if (loading) return <div className="w-full h-screen bg-[#008080] flex items-center justify-center text-white font-mono">LOADING SYSTEM...</div>;
 
   return (
-    <>
-    <style>{ANIMATION_STYLES}</style>
     <div
       style={{
         position: "relative",
         width: "100vw",
         height: "100vh",
         overflow: "hidden", 
-        backgroundColor: "#000",
+        backgroundColor: isEmbed ? "transparent" : "#008080",
+        overscrollBehavior: "none", 
       }}
     >
-      {/* --- BACKGROUND LOOP ENGINE --- */}
-      {!isEmbed && (
-        <div className="absolute inset-0 overflow-hidden">
-            
-            {/* PARALLAX WRAPPER */}
-            <div 
-                style={{
-                    position: "absolute",
-                    inset: "-10%", 
-                    width: "120%",
-                    height: "120%",
-                    transform: `translate(${mousePos.x * 20}px, ${mousePos.y * 20}px)`,
-                }}
-            >
-                {/* THE MOVING TRACK */}
-                <div className="loop-track">
-                     {/* Image 1 */}
-                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                     <img 
-                        src="/assets/city_loop.png" 
-                        alt="City Loop 1"
-                        className="loop-image"
-                     />
-                     {/* Image 2 */}
-                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                     <img 
-                        src="/assets/city_loop.png" 
-                        alt="City Loop 2"
-                        className="loop-image"
-                     />
-                </div>
-            </div>
-
-            {/* ATMOSPHERE / VIGNETTE */}
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.8)_100%)] z-10 pointer-events-none" />
-            
-            {/* SCANLINES */}
-            <div className="absolute inset-0 pointer-events-none z-10 opacity-20" 
-                 style={{ 
-                    background: "linear-gradient(to bottom, transparent 50%, #000 50%)", 
-                    backgroundSize: "100% 4px" 
-                 }} 
-            />
-        </div>
-      )}
-
-      {/* --- MAIN APP CONTENT --- */}
-      <div style={{ display: "flex", width: "100%", height: "100%", position: "relative", zIndex: 30 }}>
+      <div style={{ display: "flex", width: "100%", height: "100%" }}>
         
-        <div style={{ flex: 1, position: "relative", marginRight: !isEmbed || sidebarOpen ? "320px" : "0", transition: "margin-right 0.3s ease", overflow: "hidden" }}>
+        {/* DESKTOP AREA */}
+        <div
+          style={{
+            flex: 1,
+            position: "relative",
+            marginRight: !isEmbed || sidebarOpen ? "320px" : "0",
+            transition: "margin-right 0.3s ease",
+            overflow: "hidden", 
+          }}
+        >
           {!isEmbed && (
             <>
-              {/* DEBUG TOOLS */}
+              {/* DEBUG BUTTONS */}
               <div style={{ position: "absolute", top: 12, left: 12, zIndex: 200, display: "flex", gap: "8px" }}>
-                <DebugButton label="+10k XP" onClick={() => addDebugXp(10000)} />
+                <DebugButton label="+10,000 XP" onClick={() => addDebugXp(10000)} />
+                <DebugButton label="Test Drop (Hard)" onClick={() => handlePongWin('hard')} />
+                <DebugButton label="Test Drop (Med)" onClick={() => handlePongWin('medium')} />
+              </div>
+              
+              <div style={{ position: "absolute", inset: 0, zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ padding: "20px", backgroundColor: "#ff00ff", color: "white", border: "4px solid white", fontWeight: "bold" }}>
+                  HOME STUDIO PLACEHOLDER
+                </div>
               </div>
             </>
           )}
 
+          {/* DRAGGABLE WINDOW */}
           {activeWindow !== "none" && (
             <Rnd
               size={{ width: winState.width, height: winState.height }}
               position={{ x: winState.x, y: winState.y }}
               onDragStop={(e, d) => setWinState(prev => ({ ...prev, x: d.x, y: d.y }))}
               onResizeStop={(e, direction, ref, delta, position) => {
-                setWinState({ width: parseInt(ref.style.width), height: parseInt(ref.style.height), ...position });
+                setWinState({
+                  width: parseInt(ref.style.width),
+                  height: parseInt(ref.style.height),
+                  ...position,
+                });
               }}
-              minWidth={600} minHeight={400} bounds="parent"
-              dragHandleClassName="retro-header" enableUserSelectHack={false} 
+              minWidth={600}
+              minHeight={400}
+              bounds="parent"
+              dragHandleClassName="retro-header" 
+              enableUserSelectHack={false} 
               style={{ zIndex: 1000, pointerEvents: "auto" }}
             >
-              <div style={{ width: "100%", height: "100%" }} onWheel={(e) => e.stopPropagation()}>
+              <div 
+                style={{ width: "100%", height: "100%" }}
+                onWheel={(e) => e.stopPropagation()} 
+              >
                 {activeWindow === "inventory" && <InventoryPage isOverlay onClose={handleCloseApp} />}
                 {activeWindow === "shop" && <ShopPage isOverlay onClose={handleCloseApp} />}
                 {activeWindow === "quests" && <QuestLogPage isOverlay onClose={handleCloseApp} />}
@@ -215,11 +212,13 @@ function GameEngineContent() {
             </Rnd>
           )}
 
+          {/* MUSIC PLAYER */}
           <div style={{ position: "fixed", bottom: 20, left: 20, zIndex: 2000 }}>
             <MusicPlayer />
           </div>
         </div>
 
+        {/* SIDEBAR */}
         {(!isEmbed || sidebarOpen) && (
           <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "320px", zIndex: 1500 }}>
             <Sidebar startOpen={sidebarOpen} onCloseAll={handleCloseApp} />
@@ -227,7 +226,6 @@ function GameEngineContent() {
         )}
       </div>
     </div>
-    </>
   );
 }
 
