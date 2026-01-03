@@ -4,9 +4,9 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useGameState } from "@/context/GameStateContext";
 
 // --- CONFIG ---
-const OBSTACLE_SPAWN_RATE = 80;
-const GAME_SPEED_START = 1.0;
-const MAX_BANK_ANGLE = 25; // How much the world tilts (Degrees)
+const OBSTACLE_SPAWN_RATE = 60;
+const INITIAL_SPEED = 1.0;
+const MAX_SPEED = 3.0;
 
 export default function FlyerRunner() {
   const { session } = useGameState();
@@ -15,82 +15,63 @@ export default function FlyerRunner() {
   const [gameOver, setGameOver] = useState(false);
   const [highScore, setHighScore] = useState(0);
 
-  // --- REFS (Performance) ---
+  // --- REFS ---
   const reqRef = useRef<number>(0);
-  const playerX = useRef(50); // 0-100% position
-  const bankAngle = useRef(0); // Current world tilt
-  const obstacles = useRef<{ id: number; x: number; y: number; z: number; type: 'block' | 'coin' }[]>([]);
-  const speedLines = useRef<{ id: number; x: number; y: number; speed: number }[]>([]);
+  const playerX = useRef(50); // 0-100%
+  const gameSpeed = useRef(INITIAL_SPEED);
   const frameCount = useRef(0);
-  const gameSpeed = useRef(GAME_SPEED_START);
+  
+  // 3D Arrays
+  const obstacles = useRef<{ id: number; x: number; y: number; z: number; type: 'block' | 'coin' }[]>([]);
+  const tunnelOffset = useRef(0); // For scrolling texture
 
-  // --- CONTROLS ---
+  // --- MOUSE CONTROL (Banks the Camera) ---
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isPlaying) return;
-    // Map mouse X to 0-100 range
     const xPercent = (e.clientX / window.innerWidth) * 100;
     playerX.current = Math.max(10, Math.min(90, xPercent));
-    
-    // Calculate Banking Angle based on position (Center = 0, Left = -25, Right = 25)
-    // We reverse it (-1) so moving left banks left
-    bankAngle.current = ((playerX.current - 50) / 50) * -MAX_BANK_ANGLE;
   }, [isPlaying]);
 
-  // --- GAME LOOP ---
+  // --- ENGINE LOOP ---
   const update = useCallback(() => {
     if (!isPlaying) return;
     frameCount.current++;
+    
+    // 1. SCROLL THE TUNNEL
+    gameSpeed.current = Math.min(MAX_SPEED, gameSpeed.current + 0.0005);
+    tunnelOffset.current = (tunnelOffset.current + (10 * gameSpeed.current)) % 1024; // Loop every 1024px (assuming texture size)
 
-    // 1. SPAWN OBSTACLES (Further away in Z-space)
+    // 2. SPAWN OBJECTS
     if (frameCount.current % Math.floor(OBSTACLE_SPAWN_RATE / gameSpeed.current) === 0) {
       obstacles.current.push({
         id: Date.now(),
-        x: (Math.random() * 60) - 30, // X range: -30 to 30 (Center 0)
-        y: (Math.random() * 20) - 10, // Y range: -10 to 10
-        z: 1000, // Spawn far away
+        // Spawn X: -40 to 40 (0 is center)
+        x: (Math.random() * 80) - 40,
+        y: (Math.random() * 20) - 10, // Variation in height
+        z: 2000, // Spawn Deep in the distance
         type: Math.random() > 0.8 ? 'coin' : 'block'
       });
     }
 
-    // 2. SPAWN SPEED LINES (For sensation of speed)
-    if (frameCount.current % 2 === 0) {
-        speedLines.current.push({
-            id: Math.random(),
-            x: (Math.random() * 200) - 100,
-            y: (Math.random() * 200) - 100,
-            speed: Math.random() * 20 + 30
-        });
-    }
-
-    // 3. MOVE EVERYTHING
-    gameSpeed.current += 0.0005;
-
-    // Move Obstacles towards camera (Z decreases)
-    obstacles.current.forEach(obs => {
-        obs.z -= 10 * gameSpeed.current;
-    });
-    // Remove obstacles behind camera
+    // 3. MOVE OBJECTS
+    obstacles.current.forEach(obs => obs.z -= (15 * gameSpeed.current));
     obstacles.current = obstacles.current.filter(obs => obs.z > -100);
 
-    // Move Speed Lines
-    speedLines.current.forEach(line => line.speed *= 1.05); // Accelerate lines
-    speedLines.current = speedLines.current.filter(line => line.speed < 1000); // Life cycle check
+    // 4. COLLISION
+    // Player is effectively at Z=0, X=(playerX - 50) scaled
+    const playerGameX = (playerX.current - 50) * 0.8; // Approximate scaling
 
-    // 4. COLLISION (Simple 2D check when object is close "Z < 50")
-    // Player is roughly at X: (playerX - 50)
-    const playerGameX = (playerX.current - 50); // Convert 0-100 to -50 to 50
-    
     obstacles.current.forEach(obs => {
-        if (obs.z < 100 && obs.z > 0) { // Object is passing player
-            // Check X proximity
-            if (Math.abs(obs.x - playerGameX) < 10) {
-                 if (obs.type === 'coin') {
-                    obs.z = -500; // Hide
-                    setScore(s => s + 50);
-                 } else {
-                    endGame();
-                 }
-            }
+        if (obs.z < 100 && obs.z > 0) { // Passing player
+             // Hitbox check
+             if (Math.abs(obs.x - playerGameX) < 10) {
+                  if (obs.type === 'coin') {
+                      obs.z = -999;
+                      setScore(s => s + 50);
+                  } else {
+                      endGame();
+                  }
+             }
         }
     });
 
@@ -108,10 +89,8 @@ export default function FlyerRunner() {
     setScore(0);
     setGameOver(false);
     obstacles.current = [];
-    speedLines.current = [];
-    gameSpeed.current = GAME_SPEED_START;
+    gameSpeed.current = INITIAL_SPEED;
     playerX.current = 50;
-    bankAngle.current = 0;
     setIsPlaying(true);
   };
 
@@ -123,166 +102,268 @@ export default function FlyerRunner() {
 
   return (
     <div 
-        className="w-full h-screen bg-black overflow-hidden relative cursor-none"
+        className="game-viewport"
         onMouseMove={handleMouseMove}
-        style={{ perspective: "600px" }} // The camera lens
     >
-        {/* --- WORLD CONTAINER (Banks/Tilts) --- */}
-        <div 
-            className="world-container"
-            style={{ 
-                transform: `rotateZ(${bankAngle.current}deg)`
-            }}
-        >
-            {/* 1. INFINITE WALLS */}
-            {/* Left Wall (Mirrored) */}
-            <div className="wall left-wall">
-                <div className="texture-scroller" />
-            </div>
-            {/* Right Wall */}
-            <div className="wall right-wall">
-                 <div className="texture-scroller" />
-            </div>
-            {/* Floor Grid */}
-            <div className="floor-grid" />
-
-            {/* 2. SPEED LINES (Starfield) */}
-            {isPlaying && speedLines.current.map(line => (
-                <div 
-                    key={line.id}
-                    className="absolute bg-white rounded-full opacity-50"
-                    style={{
-                        left: '50%', top: '50%',
-                        width: '2px', height: `${line.speed}px`,
-                        transform: `translate(${line.x}vw, ${line.y}vh) rotate(0deg) translateZ(${line.speed * 2}px)`
-                    }}
-                />
-            ))}
-
-            {/* 3. OBSTACLES (3D Transformed) */}
-            {obstacles.current.map(obs => (
-                <div
-                    key={obs.id}
-                    className={`absolute flex items-center justify-center font-bold border-2 transition-opacity`}
-                    style={{
-                        left: '50%', top: '60%', // Horizon point
-                        width: '80px', height: '80px',
-                        // 3D Transform: Move X, Move Z (towards camera)
-                        transform: `translateX(${obs.x * 10}px) translateY(0px) translateZ(${600 - obs.z}px)`,
-                        opacity: obs.z < 1000 ? 1 : 0,
-                        borderColor: obs.type === 'coin' ? '#fbbf24' : '#ef4444',
-                        backgroundColor: obs.type === 'coin' ? 'rgba(251, 191, 36, 0.2)' : 'rgba(239, 68, 68, 0.2)',
-                        boxShadow: obs.type === 'coin' ? '0 0 20px #fbbf24' : '0 0 20px #ef4444',
-                        borderRadius: obs.type === 'coin' ? '50%' : '4px'
-                    }}
-                >
-                    {obs.type === 'coin' ? '$' : 'X'}
+        {/* --- 3D SCENE CONTAINER --- */}
+        <div className="scene-3d">
+            
+            {/* --- THE TUNNEL (Moves with Mouse Banking) --- */}
+            <div 
+                className="tunnel-assembly"
+                style={{
+                    // Rotate the whole world opposite to mouse to simulate banking
+                    transform: `rotateZ(${-(playerX.current - 50) * 0.2}deg) translateX(${-(playerX.current - 50) * 0.5}px)`
+                }}
+            >
+                {/* LEFT WALL */}
+                <div className="wall left-wall">
+                    <div 
+                        className="wall-texture" 
+                        style={{ backgroundPositionY: `${tunnelOffset.current}px` }}
+                    />
                 </div>
-            ))}
-        </div>
 
-        {/* --- UI LAYER (Static, does not tilt) --- */}
-        
-        {/* PLAYER COCKPIT/RETICLE */}
-        <div 
-            className="absolute bottom-10 left-1/2 transform -translate-x-1/2 w-0 h-0 z-50 pointer-events-none transition-transform duration-75"
-             style={{ 
-                borderLeft: '20px solid transparent',
-                borderRight: '20px solid transparent',
-                borderBottom: '50px solid #00ff00',
-                filter: 'drop-shadow(0 0 10px #00ff00)',
-                // Slight counter-rotation to keep ship somewhat level while world banks
-                transform: `translateX(-50%) rotate(${-bankAngle.current * 0.5}deg)`
-            }}
-        />
-        
-        {/* SCORE */}
-        <div className="absolute top-4 left-4 font-mono text-green-500 text-xl z-50 text-shadow-glow">
-            SCORE: {score.toString().padStart(6, '0')}
-        </div>
+                {/* RIGHT WALL */}
+                <div className="wall right-wall">
+                    <div 
+                        className="wall-texture" 
+                        style={{ backgroundPositionY: `${tunnelOffset.current}px` }}
+                    />
+                </div>
 
-        {/* MENU */}
-        {!isPlaying && (
-            <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-[100] backdrop-blur-md">
-                 <h1 className="text-6xl text-transparent bg-clip-text bg-gradient-to-t from-green-600 to-green-300 font-mono mb-2 tracking-widest text-shadow-glow italic">
-                    DATA_RUNNER
-                 </h1>
-                 <p className="text-gray-400 font-mono mb-8 text-xs tracking-[0.5em]">INFINITE LOOP PROTOCOL</p>
-                 
-                 {gameOver && <div className="text-red-500 font-mono text-xl mb-4 blink">CRASH DETECTED - SCORE: {score}</div>}
-                 
-                 <button onClick={startGame} className="border border-green-500 text-green-500 px-12 py-4 font-mono text-xl hover:bg-green-500 hover:text-black transition-all shadow-[0_0_30px_rgba(0,255,0,0.3)]">
-                    {gameOver ? "REBOOT SYSTEM" : "INITIALIZE"}
-                 </button>
+                {/* FLOOR */}
+                <div className="floor-plane">
+                    <div 
+                        className="floor-grid"
+                        style={{ backgroundPositionY: `${tunnelOffset.current}px` }} 
+                    />
+                </div>
+
+                {/* CEILING (Optional reflection) */}
+                <div className="ceiling-plane" />
+            
+                {/* --- OBJECTS IN 3D SPACE --- */}
+                {obstacles.current.map(obs => (
+                    <div
+                        key={obs.id}
+                        className="game-object"
+                        style={{
+                            // CSS 3D Transform to place items in depth
+                            transform: `translate3d(${obs.x * 10}px, ${obs.y * 5}px, ${-obs.z}px)`,
+                            opacity: obs.z > 1500 ? 0 : 1, // Fade in
+                            border: obs.type === 'coin' ? '2px solid yellow' : '2px solid red',
+                            backgroundColor: obs.type === 'coin' ? 'rgba(255,255,0,0.2)' : 'rgba(255,0,0,0.2)',
+                            borderRadius: obs.type === 'coin' ? '50%' : '0px',
+                            boxShadow: obs.type === 'coin' ? '0 0 10px yellow' : '0 0 10px red'
+                        }}
+                    >
+                        {obs.type === 'coin' ? '$' : 'X'}
+                    </div>
+                ))}
+
             </div>
-        )}
+
+            {/* --- FOG OVERLAY (Hides the end of the tunnel) --- */}
+            <div className="fog-overlay" />
+
+        </div>
+
+
+        {/* --- UI (2D Overlay) --- */}
+        <div className="hud-layer">
+            
+            {/* RETICLE / SHIP */}
+            <div 
+                className="ship-hud"
+                style={{
+                    left: `${playerX.current}%`,
+                    transform: `translateX(-50%) rotate(${(playerX.current - 50) * 0.5}deg)`
+                }}
+            />
+
+            <div className="score-display">SCORE: {score.toString().padStart(6, '0')}</div>
+
+            {!isPlaying && (
+                <div className="menu-overlay">
+                     <h1 className="title">DATA_RUNNER_V1</h1>
+                     <button onClick={startGame} className="start-btn">
+                        {gameOver ? "RETRY SYSTEM" : "START ENGINE"}
+                     </button>
+                </div>
+            )}
+        </div>
 
         <style jsx>{`
-            .world-container {
-                position: absolute;
-                inset: 0;
-                transform-style: preserve-3d; /* Vital for 3D elements */
-                transition: transform 0.1s ease-out; /* Smooth banking */
+            /* --- CORE VIEWPORT --- */
+            .game-viewport {
+                width: 100vw;
+                height: 100vh;
+                background: #000;
+                overflow: hidden;
+                cursor: none;
+                perspective: 800px; /* The Camera Lens */
             }
 
+            .scene-3d {
+                width: 100%;
+                height: 100%;
+                position: relative;
+                transform-style: preserve-3d;
+            }
+
+            .tunnel-assembly {
+                width: 100%;
+                height: 100%;
+                position: absolute;
+                transform-style: preserve-3d;
+            }
+
+            /* --- WALLS (The Critical Part) --- */
             .wall {
                 position: absolute;
-                top: -50%; bottom: -50%; /* Tall walls */
-                width: 400vh; /* Long walls */
-                background: #000;
-                transform-style: preserve-3d;
+                top: -50%; /* Extend above/below viewport to prevent gaps */
+                bottom: -50%;
+                width: 10000px; /* VERY DEEP wall */
+                background: #050505;
+                backface-visibility: hidden; /* Performance */
             }
 
             .left-wall {
                 left: 0;
-                /* Rotate 90deg to stand up, ScaleX -1 to flip texture (mirroring) */
-                transform: translateX(-50%) rotateY(90deg) scaleX(-1);
+                /* Hinge on the left edge of screen, rotate 90deg away */
                 transform-origin: left center;
-                border-bottom: 2px solid #00ff00; /* Neon floor line */
+                transform: rotateY(90deg);
+                border-bottom: 2px solid #00ff00;
             }
 
             .right-wall {
                 right: 0;
-                transform: translateX(50%) rotateY(-90deg);
+                /* Hinge on the right edge of screen, rotate -90deg away */
                 transform-origin: right center;
-                border-bottom: 2px solid #00ff00; /* Neon floor line */
+                transform: rotateY(-90deg);
+                border-bottom: 2px solid #00ff00;
             }
 
-            .texture-scroller {
+            .wall-texture {
                 width: 100%;
                 height: 100%;
-                /* Seamless texture settings */
                 background-image: url('/assets/city_loop.png');
-                background-size: auto 100%; 
-                opacity: 0.6;
-                /* The movement animation */
-                animation: wallScroll 2s linear infinite;
+                /* Rotate texture so lines flow horizontally down the tunnel */
+                background-repeat: repeat;
+                background-size: 512px 512px; /* Adjust based on image size */
+                opacity: 0.5;
+                transform: rotate(-90deg); /* Orient texture to flow down the tunnel */
+                transform-origin: center;
             }
 
-            .floor-grid {
+            /* --- FLOOR & CEILING --- */
+            .floor-plane {
                 position: absolute;
-                bottom: -50%; left: -50%; right: -50%; top: 50%;
-                background: 
-                    linear-gradient(transparent 0%, rgba(0,255,0,0.1) 1px, transparent 2px),
-                    linear-gradient(90deg, transparent 0%, rgba(0,255,0,0.1) 1px, transparent 2px);
-                background-size: 100px 100px;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                height: 10000px; /* Deep floor */
+                transform-origin: bottom center;
                 transform: rotateX(90deg);
-                transform-origin: top center;
-                animation: floorScroll 1s linear infinite;
+            }
+            
+            .floor-grid {
+                width: 100%;
+                height: 100%;
+                background: 
+                    linear-gradient(90deg, transparent 0%, rgba(0,255,0,0.1) 1px, transparent 2px),
+                    linear-gradient(180deg, transparent 0%, rgba(0,255,0,0.1) 1px, transparent 2px);
+                background-size: 100px 100px;
             }
 
-            @keyframes wallScroll {
-                from { background-position: 0 0; }
-                to { background-position: -100vh 0; } /* Move texture horizontally */
-            }
-             @keyframes floorScroll {
-                from { transform: rotateX(90deg) translateY(0); }
-                to { transform: rotateX(90deg) translateY(100px); }
+            /* --- OBJECTS --- */
+            .game-object {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                width: 60px;
+                height: 60px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-family: monospace;
+                font-weight: bold;
+                /* Crucial: We translate objects in Z space */
+                transform-style: preserve-3d;
             }
 
-            .text-shadow-glow { text-shadow: 0 0 10px #0f0; }
-            .blink { animation: blinker 1s linear infinite; }
-            @keyframes blinker { 50% { opacity: 0; } }
+            /* --- FOG / ATMOSPHERE --- */
+            .fog-overlay {
+                position: absolute;
+                inset: 0;
+                background: radial-gradient(circle at center, transparent 20%, #000 90%);
+                pointer-events: none;
+                z-index: 10;
+            }
+
+            /* --- HUD --- */
+            .hud-layer {
+                position: absolute;
+                inset: 0;
+                z-index: 20;
+                pointer-events: none;
+            }
+
+            .ship-hud {
+                position: absolute;
+                bottom: 100px;
+                width: 0; height: 0;
+                border-left: 20px solid transparent;
+                border-right: 20px solid transparent;
+                border-bottom: 50px solid #00ff00;
+                filter: drop-shadow(0 0 15px #00ff00);
+            }
+
+            .score-display {
+                position: absolute;
+                top: 20px; left: 20px;
+                color: #00ff00;
+                font-family: monospace;
+                font-size: 24px;
+                text-shadow: 0 0 10px #00ff00;
+            }
+
+            .menu-overlay {
+                position: absolute;
+                inset: 0;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                background: rgba(0,0,0,0.8);
+                pointer-events: auto;
+            }
+
+            .title {
+                color: #00ff00;
+                font-family: monospace;
+                font-size: 4rem;
+                margin-bottom: 2rem;
+                text-shadow: 0 0 20px rgba(0,255,0,0.5);
+            }
+
+            .start-btn {
+                background: transparent;
+                border: 2px solid #00ff00;
+                color: #00ff00;
+                padding: 1rem 3rem;
+                font-family: monospace;
+                font-size: 1.5rem;
+                cursor: pointer;
+                transition: 0.2s;
+            }
+            .start-btn:hover {
+                background: #00ff00;
+                color: black;
+                box-shadow: 0 0 30px #00ff00;
+            }
         `}</style>
     </div>
   );
