@@ -16,13 +16,13 @@ export default function FlyerRunner() {
 
   // --- REFS ---
   const reqRef = useRef<number>(0);
-  const playerX = useRef(50); 
+  const playerX = useRef(50);
   const gameSpeed = useRef(1.0);
   const frameCount = useRef(0);
   const obstacles = useRef<{ id: number; x: number; y: number; z: number; type: 'block' | 'coin' }[]>([]);
   
-  // X-Axis Scroll (Distance)
-  const tunnelDistance = useRef(0); 
+  // Carousel Position (0 to 100%)
+  const scrollPos = useRef(0);
 
   // --- MOUSE CONTROL ---
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -36,10 +36,14 @@ export default function FlyerRunner() {
     if (!isPlaying) return;
     frameCount.current++;
     
-    // 1. SCROLL DISTANCE
+    // 1. SCROLL ENGINE (Carousel Logic)
     gameSpeed.current = Math.min(MAX_SPEED, gameSpeed.current + 0.0005);
-    // Scroll speed
-    tunnelDistance.current -= (25 * gameSpeed.current); 
+    // Move 1% per frame relative to speed
+    scrollPos.current -= (0.5 * gameSpeed.current);
+    // Reset loop when first image leaves screen (-100%)
+    if (scrollPos.current <= -100) {
+        scrollPos.current += 100;
+    }
 
     // 2. SPAWN OBJECTS
     if (frameCount.current % Math.floor(OBSTACLE_SPAWN_RATE / gameSpeed.current) === 0) {
@@ -87,6 +91,7 @@ export default function FlyerRunner() {
     obstacles.current = [];
     gameSpeed.current = 1.0;
     playerX.current = 50;
+    scrollPos.current = 0;
     setIsPlaying(true);
   };
 
@@ -97,10 +102,7 @@ export default function FlyerRunner() {
   };
 
   return (
-    <div 
-        className="game-viewport"
-        onMouseMove={handleMouseMove}
-    >
+    <div className="game-viewport" onMouseMove={handleMouseMove}>
         <div className="scene-3d">
             
             {/* CAMERA RIG */}
@@ -113,55 +115,42 @@ export default function FlyerRunner() {
                     `
                 }}
             >
-                {/* --- 1. LEFT WALL --- */}
+                {/* === LEFT WALL (Left 50% of screen) === */}
                 <div className="wall left-wall">
-                    <div className="texture-container">
-                        {/* LOGIC:
-                           1. Width 200%: The image is double the size of the wall.
-                           2. Left 0%: We see the LEFT HALF of the image.
-                           3. Flip Horizontal: Puts the "Road" (Center of image) at the far end of the tunnel.
-                        */}
-                        <div 
-                            className="moving-strip"
-                            style={{ 
-                                transform: `translateX(${tunnelDistance.current}px) scaleX(-1)` 
-                            }}
-                        >
-                            {/* Repeated images for infinite loop */}
-                            <img src="/assets/city_loop.png" className="texture-img" alt="" />
-                            <img src="/assets/city_loop.png" className="texture-img" alt="" />
-                            <img src="/assets/city_loop.png" className="texture-img" alt="" />
+                    <div className="carousel-track" style={{ transform: `translateX(${scrollPos.current}%)` }}>
+                        {/* Image 1 */}
+                        <div className="image-panel">
+                             <img src="/assets/city_loop.png" className="wall-img left-crop" alt="" />
+                        </div>
+                        {/* Image 2 (Seamless Follower) */}
+                        <div className="image-panel">
+                             <img src="/assets/city_loop.png" className="wall-img left-crop" alt="" />
                         </div>
                     </div>
+                    <div className="wall-mask" />
                 </div>
 
-                {/* --- 2. RIGHT WALL --- */}
+                {/* === RIGHT WALL (Right 50% of screen) === */}
                 <div className="wall right-wall">
-                    <div className="texture-container">
-                        {/* LOGIC:
-                           1. Width 200%: Image is double size.
-                           2. Left -100%: Shifts the image so we see the RIGHT HALF.
-                           3. Flip Horizontal: Puts the "Road" (Center of image) at the far end of the tunnel.
-                        */}
-                        <div 
-                            className="moving-strip"
-                            style={{ 
-                                left: '-100%', 
-                                transform: `translateX(${tunnelDistance.current}px) scaleX(-1)` 
-                            }}
-                        >
-                            <img src="/assets/city_loop.png" className="texture-img" alt="" />
-                            <img src="/assets/city_loop.png" className="texture-img" alt="" />
-                            <img src="/assets/city_loop.png" className="texture-img" alt="" />
+                    {/* ScaleX(-1) mirrors the ENTIRE wall geometry to create the tunnel symmetry */}
+                    <div className="carousel-track" style={{ transform: `translateX(${scrollPos.current}%)` }}>
+                         {/* Image 1 */}
+                        <div className="image-panel">
+                             <img src="/assets/city_loop.png" className="wall-img right-crop" alt="" />
+                        </div>
+                        {/* Image 2 (Seamless Follower) */}
+                        <div className="image-panel">
+                             <img src="/assets/city_loop.png" className="wall-img right-crop" alt="" />
                         </div>
                     </div>
+                    <div className="wall-mask" />
                 </div>
 
-                {/* --- 3. FLOOR & CEILING --- */}
+                {/* --- FLOOR & CEILING --- */}
                 <div className="floor-plane" />
                 <div className="ceiling-plane" />
 
-                {/* --- 4. GAME OBJECTS --- */}
+                {/* --- OBJECTS --- */}
                 {obstacles.current.map(obs => (
                     <div
                         key={obs.id}
@@ -182,7 +171,7 @@ export default function FlyerRunner() {
             <div className="fog-overlay" />
         </div>
 
-        {/* --- UI --- */}
+        {/* --- HUD --- */}
         <div className="hud-layer">
             <div 
                 className="reticle"
@@ -220,10 +209,10 @@ export default function FlyerRunner() {
             .wall {
                 position: absolute;
                 top: -50%; bottom: -50%;
-                width: 5000px; /* Long tunnel */
-                background: #000;
+                width: 5000px; /* Physical depth */
+                background: #050505;
                 backface-visibility: visible;
-                overflow: hidden; /* Crops the texture */
+                overflow: hidden;
             }
 
             .left-wall {
@@ -238,31 +227,49 @@ export default function FlyerRunner() {
                 transform-origin: right center;
                 transform: rotateY(-90deg);
                 border-bottom: 2px solid #0f0;
+                /* This mirror flips the geometry to match the left wall */
+                transform: rotateY(-90deg) scaleX(-1);
             }
 
-            /* --- TEXTURE SYSTEM --- */
-            .texture-container {
-                position: absolute;
-                top: 0; bottom: 0;
-                left: 0; 
-                width: 200%; /* The container is double the width of the wall */
-                display: flex;
-            }
-
-            .moving-strip {
-                display: flex;
+            /* --- CAROUSEL SYSTEM --- */
+            .carousel-track {
+                display: flex; /* Stack images horizontally */
                 height: 100%;
-                position: absolute;
-                top: 0; left: 0;
-                /* No background-image here, we use img tags */
+                width: 200%; /* Enough space for 2 images */
                 will-change: transform;
             }
 
-            .texture-img {
+            .image-panel {
+                width: 50%; /* Each image takes 50% of the 200% track (so 100% of wall) */
                 height: 100%;
-                width: auto; /* Maintain aspect ratio */
-                display: block;
-                /* Crucial: ensure images butt up against each other */
+                position: relative;
+                overflow: hidden; /* Important for cropping */
+            }
+
+            .wall-img {
+                height: 100%;
+                width: auto;
+                max-width: none; /* Prevent scaling down */
+                position: absolute;
+            }
+
+            /* LEFT CROP: Align Right edge of image to Right edge of wall (Center of Screen) */
+            .left-crop {
+                right: 0;
+                object-position: right center;
+            }
+
+            /* RIGHT CROP: Align Right edge of image (because we flipped the wall with scaleX) */
+            .right-crop {
+                right: 0; 
+                object-position: right center;
+            }
+
+            .wall-mask {
+                position: absolute; inset: 0;
+                background: linear-gradient(to right, transparent 0%, #000 90%);
+                pointer-events: none;
+                z-index: 5;
             }
 
             /* --- FLOOR & CEILING --- */
