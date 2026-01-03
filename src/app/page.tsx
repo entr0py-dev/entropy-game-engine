@@ -190,7 +190,7 @@ function GameEngineContent() {
     </Link>
   </div>
 </div>
-         )}
+      
 
           {/* DRAGGABLE WINDOW */}
           {activeWindow !== "none" && (
