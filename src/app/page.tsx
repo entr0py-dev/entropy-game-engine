@@ -1,8 +1,7 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
 import { useGameState } from "@/context/GameStateContext";
 import { Rnd } from "react-rnd";
 import InventoryPage from "./inventory/page";
@@ -12,39 +11,13 @@ import AvatarStudio from "./profile/page";
 import MusicPlayer from "@/components/MusicPlayer";
 import Sidebar from "@/components/Sidebar";
 
-// --- SIMPLE SCROLL ANIMATION ---
-const ANIMATION_STYLES = `
-  @keyframes flatScroll {
-    0% { transform: translateY(0); }
-    100% { transform: translateY(50%); } 
-  }
-  .flat-scroll-track {
-    animation: flatScroll 5s linear infinite;
-    width: 100%;
-    height: 200%; 
-    position: absolute;
-    bottom: 0;
-    left: 0;
-  }
-`;
-
 function GameEngineContent() {
-  const {
-    session,
-    loading,
-    profile,
-    activeWindow,
-    setActiveWindow,
-    refreshGameState,
-    handlePongWin
-  } = useGameState();
+  const { activeWindow, setActiveWindow } = useGameState();
   const searchParams = useSearchParams();
-  const creatingProfile = useRef(false);
-  const hasTriedCreating = useRef(false);
-  
-  const [imgError, setImgError] = useState(false);
   const isEmbed = searchParams.get("embed") === "true";
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  // Window State
   const [winState, setWinState] = useState({ x: 50, y: 50, width: 1000, height: 700 });
 
   useEffect(() => {
@@ -57,118 +30,59 @@ function GameEngineContent() {
   const handleCloseApp = () => {
     setActiveWindow("none");
     setSidebarOpen(false);
-    if (isEmbed) {
-        if (window.parent) window.parent.postMessage("CLOSE_OVERLAY", "*");
-    } else {
-        window.location.href = "https://www.entropyofficial.com";
-    }
   };
 
-  async function addDebugXp(amount: number) {
-    if (!session?.user || !profile) return;
-    const { error: rpcError } = await supabase.rpc("add_xp", { user_id: session.user.id, amount });
-    if (rpcError) {
-       let xpPool = (profile.xp ?? 0) + amount;
-       let level = profile.level ?? 1;
-       let threshold = level * 263;
-       while (xpPool >= threshold) { xpPool -= threshold; level += 1; threshold = level * 263; }
-       await supabase.from("profiles").update({ xp: xpPool, level }).eq("id", session.user.id);
-    }
-    await refreshGameState();
-  }
-
-  useEffect(() => {
-    async function ensureProfile() {
-      if (loading || creatingProfile.current || hasTriedCreating.current) return;
-      if (!session?.user || profile) return;
-      creatingProfile.current = true;
-      hasTriedCreating.current = true; 
-      const rawName = session.user.email?.split("@")[0] || "operative";
-      const safeName = rawName.replace(/[^a-zA-Z0-9_]/g, "");
-      const { error } = await supabase.from("profiles").insert({
-        id: session.user.id, username: safeName, avatar: "default", entrobucks: 0, xp: 0, level: 1,
-      });
-      if (!error) await refreshGameState();
-      creatingProfile.current = false;
-    }
-    void ensureProfile();
-  }, [loading, session, profile, refreshGameState]);
-
-  if (loading) return <div className="bg-black h-screen text-green-500 font-mono p-10">LOADING...</div>;
-
   return (
-    <>
-    <style>{ANIMATION_STYLES}</style>
     <div
       style={{
         position: "relative",
         width: "100vw",
         height: "100vh",
         overflow: "hidden", 
-        backgroundColor: "#ff00ff", // HOT PINK BACKGROUND (If you don't see this, something is WRONG)
-        overscrollBehavior: "none", 
+        backgroundColor: "#ff00ff", // HOT PINK
       }}
     >
-      {/* --- BACKGROUND ENGINE (FLAT MODE) --- */}
+      {/* --- STATIC IMAGE TEST --- */}
       {!isEmbed && (
-        <div className="absolute inset-0 overflow-hidden">
-            {/* The Moving Track */}
-            <div className="flat-scroll-track">
-                 {/* Image 1 */}
-                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                 <img 
-                    src="/assets/city_loop.png" 
-                    alt="City Loop 1"
-                    style={{ 
-                        display: "block",
-                        width: "100%", 
-                        height: "50%", 
-                        objectFit: "cover", 
-                        border: "5px solid #00ff00", // BRIGHT GREEN BORDER
-                        backgroundColor: "black" // If image is transparent, it will be black
-                    }}
-                    onError={() => setImgError(true)}
-                 />
-                 {/* Image 2 */}
-                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                 <img 
-                    src="/assets/city_loop.png" 
-                    alt="City Loop 2"
-                    style={{ 
-                        display: "block",
-                        width: "100%", 
-                        height: "50%", 
-                        objectFit: "cover",
-                        border: "5px solid #00ff00",
-                        backgroundColor: "black"
-                    }}
-                 />
-            </div>
+        <div 
+            style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "column",
+                zIndex: 0
+            }}
+        >
+            <h1 style={{ color: "white", background: "black", padding: "10px", marginBottom: "20px" }}>
+                STATIC IMAGE TEST
+            </h1>
 
-            {/* ERROR TEXT ON SCREEN */}
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white p-4 z-50 text-black font-bold">
-                <p>DIAGNOSTIC MODE</p>
-                <p>Background should be PINK.</p>
-                <p>Images should have GREEN BORDERS.</p>
-                <p>Image Load Status: {imgError ? "❌ FAILED" : "✅ SUCCESS"}</p>
-                <p>Path: /assets/city_loop.png</p>
-            </div>
+            {/* THE IMAGE - HARDCODED SIZE */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img 
+                src="/assets/city_loop.png" 
+                alt="Test Render"
+                style={{ 
+                    width: "500px", 
+                    height: "500px", 
+                    objectFit: "cover", 
+                    border: "10px solid #00ff00", // GIANT GREEN BORDER
+                    backgroundColor: "black"
+                }}
+            />
+            
+            <p style={{ marginTop: "20px", background: "white", padding: "5px" }}>
+                Path: /assets/city_loop.png
+            </p>
         </div>
       )}
 
-      {/* --- MAIN APP CONTENT --- */}
-      <div style={{ display: "flex", width: "100%", height: "100%", position: "relative", zIndex: 30 }}>
-        
-        <div style={{ flex: 1, position: "relative", marginRight: !isEmbed || sidebarOpen ? "320px" : "0", transition: "margin-right 0.3s ease", overflow: "hidden" }}>
-          {!isEmbed && (
-            <>
-              <div style={{ position: "absolute", top: 12, left: 12, zIndex: 200, display: "flex", gap: "8px" }}>
-                <DebugButton label="+10k XP" onClick={() => addDebugXp(10000)} />
-              </div>
-            </>
-          )}
-
-          {activeWindow !== "none" && (
+      {/* --- APP CONTENT --- */}
+      <div style={{ position: "relative", zIndex: 10, width: "100%", height: "100%" }}>
+         {/* Draggable Window Logic (Kept for compatibility) */}
+         {activeWindow !== "none" && (
             <Rnd
               size={{ width: winState.width, height: winState.height }}
               position={{ x: winState.x, y: winState.y }}
@@ -177,10 +91,9 @@ function GameEngineContent() {
                 setWinState({ width: parseInt(ref.style.width), height: parseInt(ref.style.height), ...position });
               }}
               minWidth={600} minHeight={400} bounds="parent"
-              dragHandleClassName="retro-header" enableUserSelectHack={false} 
               style={{ zIndex: 1000, pointerEvents: "auto" }}
             >
-              <div style={{ width: "100%", height: "100%" }} onWheel={(e) => e.stopPropagation()}>
+              <div style={{ width: "100%", height: "100%" }}>
                 {activeWindow === "inventory" && <InventoryPage isOverlay onClose={handleCloseApp} />}
                 {activeWindow === "shop" && <ShopPage isOverlay onClose={handleCloseApp} />}
                 {activeWindow === "quests" && <QuestLogPage isOverlay onClose={handleCloseApp} />}
@@ -188,20 +101,18 @@ function GameEngineContent() {
               </div>
             </Rnd>
           )}
-
+          
+          {(!isEmbed || sidebarOpen) && (
+             <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "320px", zIndex: 1500 }}>
+                <Sidebar startOpen={sidebarOpen} onCloseAll={handleCloseApp} />
+             </div>
+          )}
+          
           <div style={{ position: "fixed", bottom: 20, left: 20, zIndex: 2000 }}>
             <MusicPlayer />
           </div>
-        </div>
-
-        {(!isEmbed || sidebarOpen) && (
-          <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "320px", zIndex: 1500 }}>
-            <Sidebar startOpen={sidebarOpen} onCloseAll={handleCloseApp} />
-          </div>
-        )}
       </div>
     </div>
-    </>
   );
 }
 
@@ -210,13 +121,5 @@ export default function HomePage() {
     <Suspense fallback={<div>Loading...</div>}>
       <GameEngineContent />
     </Suspense>
-  );
-}
-
-function DebugButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="bg-black text-white p-2 border border-gray-500 rounded text-xs hover:bg-gray-800">
-      {label}
-    </button>
   );
 }
