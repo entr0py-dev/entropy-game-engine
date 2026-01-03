@@ -22,7 +22,7 @@ export default function FlyerRunner() {
   const obstacles = useRef<{ id: number; x: number; y: number; z: number; type: 'block' | 'coin' }[]>([]);
   
   // Scroll Position (0% to -100%)
-  const scrollY = useRef(0);
+  const scrollX = useRef(0);
 
   // --- MOUSE CONTROL ---
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -36,13 +36,15 @@ export default function FlyerRunner() {
     if (!isPlaying) return;
     frameCount.current++;
     
-    // 1. SCROLL ENGINE
+    // 1. SCROLL ENGINE (Horizontal Movement)
     gameSpeed.current = Math.min(MAX_SPEED, gameSpeed.current + 0.0005);
-    // Move down (positive Y)
-    scrollY.current += (0.5 * gameSpeed.current);
-    // Reset loop
-    if (scrollY.current >= 100) {
-        scrollY.current -= 100;
+    
+    // Move LEFT (negative X) to simulate rushing forward
+    scrollX.current -= (0.5 * gameSpeed.current);
+    
+    // Reset loop when we've scrolled past the first image width (-50% of the dual-image container)
+    if (scrollX.current <= -50) {
+        scrollX.current += 50;
     }
 
     // 2. SPAWN OBJECTS
@@ -91,7 +93,7 @@ export default function FlyerRunner() {
     obstacles.current = [];
     gameSpeed.current = 1.0;
     playerX.current = 50;
-    scrollY.current = 0;
+    scrollX.current = 0;
     setIsPlaying(true);
   };
 
@@ -117,28 +119,44 @@ export default function FlyerRunner() {
             >
                 {/* === LEFT WALL === */}
                 <div className="wall left-wall">
-                    <div className="scroll-container" style={{ transform: `translateY(${scrollY.current}%)` }}>
-                        {/* Image 1: Cropped Left, Flipped X */}
-                        <div className="crop-container left-crop">
-                            <img src="/assets/city_loop.png" className="texture-img flipped-x" alt="" />
+                    <div className="track-container" style={{ transform: `translateX(${scrollX.current}%)` }}>
+                        
+                        {/* Image 1: First Half */}
+                        <div className="image-panel">
+                            {/* flipped-x puts the Road (Center) at the far right of this panel (Distance) */}
+                            <img src="/assets/city_loop.png" className="texture-img left-crop flipped-x" alt="" />
                         </div>
-                        {/* Image 2 (Loop Follower): Cropped Left, Flipped X */}
-                        <div className="crop-container left-crop" style={{ top: '-100%' }}>
-                             <img src="/assets/city_loop.png" className="texture-img flipped-x" alt="" />
+                        
+                        {/* Image 2: Second Half (Seamless) */}
+                        <div className="image-panel">
+                             <img src="/assets/city_loop.png" className="texture-img left-crop flipped-x" alt="" />
+                        </div>
+                        
+                        {/* Buffer Image (To prevent flicker on fast scroll) */}
+                        <div className="image-panel">
+                             <img src="/assets/city_loop.png" className="texture-img left-crop flipped-x" alt="" />
                         </div>
                     </div>
                 </div>
 
                 {/* === RIGHT WALL === */}
                 <div className="wall right-wall">
-                     <div className="scroll-container" style={{ transform: `translateY(${scrollY.current}%)` }}>
-                        {/* Image 1: Cropped Right, Flipped X */}
-                        <div className="crop-container right-crop">
-                            <img src="/assets/city_loop.png" className="texture-img flipped-x" alt="" />
+                    <div className="track-container" style={{ transform: `translateX(${scrollX.current}%)` }}>
+                        
+                        {/* Image 1 */}
+                        <div className="image-panel">
+                            {/* flipped-x puts the Road (Center) at the far right of this panel (Distance) */}
+                            <img src="/assets/city_loop.png" className="texture-img right-crop flipped-x" alt="" />
                         </div>
-                        {/* Image 2 (Loop Follower): Cropped Right, Flipped X */}
-                        <div className="crop-container right-crop" style={{ top: '-100%' }}>
-                             <img src="/assets/city_loop.png" className="texture-img flipped-x" alt="" />
+                        
+                        {/* Image 2 */}
+                        <div className="image-panel">
+                             <img src="/assets/city_loop.png" className="texture-img right-crop flipped-x" alt="" />
+                        </div>
+
+                         {/* Buffer Image */}
+                         <div className="image-panel">
+                             <img src="/assets/city_loop.png" className="texture-img right-crop flipped-x" alt="" />
                         </div>
                     </div>
                 </div>
@@ -206,10 +224,10 @@ export default function FlyerRunner() {
             .wall {
                 position: absolute;
                 top: -50%; bottom: -50%;
-                width: 5000px; 
+                width: 5000px; /* Depth into screen */
                 background: #050505;
                 backface-visibility: visible;
-                overflow: hidden; /* Crucial for cropping */
+                overflow: hidden; 
             }
 
             .left-wall {
@@ -226,28 +244,38 @@ export default function FlyerRunner() {
                 border-bottom: 2px solid #0f0;
             }
 
-            /* --- TEXTURE SYSTEM --- */
-            .scroll-container {
-                position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            /* --- TRACK CONTAINER (The Moving Strip) --- */
+            .track-container {
+                display: flex; /* Horizontal Layout: Images side-by-side */
+                flex-direction: row; 
+                width: 300%; /* Enough for 3 images */
+                height: 100%;
                 will-change: transform;
             }
-            
-            .crop-container {
-                position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-                overflow: hidden;
+
+            .image-panel {
+                width: 33.33%; /* 1/3 of the container width */
+                height: 100%;
+                position: relative;
+                overflow: hidden; /* For cropping */
             }
 
             .texture-img {
                 position: absolute;
-                height: 100%; width: 200%; /* Double width for cropping */
+                height: 100%; 
+                width: 200%; /* Double width of panel to allow cropping */
                 max-width: none;
             }
 
-            /* Crop Logic: Shift image left or right */
-            .left-crop .texture-img { left: 0; }
-            .right-crop .texture-img { left: -100%; }
+            /* --- CROP & FLIP LOGIC --- */
+            /* Left Wall: Show Left Half of Image (0 to 50%) */
+            .left-crop { left: 0; }
+            
+            /* Right Wall: Show Right Half of Image (-50% to 100%) */
+            .right-crop { left: -100%; }
 
-            /* THE FIX: Flip images horizontally to put road in distance */
+            /* Flip Horizontal: Puts the "Center/Road" at the RIGHT edge of the panel.
+               Since we scroll LEFT (translateX -), the road moves away, or buildings come towards us. */
             .flipped-x { transform: scaleX(-1); }
 
 
