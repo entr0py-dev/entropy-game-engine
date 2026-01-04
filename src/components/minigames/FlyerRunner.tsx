@@ -4,8 +4,9 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useGameState } from "@/context/GameStateContext";
 
 // --- CONFIG ---
-const OBSTACLE_SPAWN_RATE = 40;
-const MAX_SPEED = 3.0;
+const OBSTACLE_SPAWN_RATE = 60; // Slower spawn since speed is lower
+const INITIAL_SPEED = 0.5; // Reduced speed for testing
+const MAX_SPEED = 2.0;
 
 export default function FlyerRunner() {
   const { session } = useGameState();
@@ -17,11 +18,11 @@ export default function FlyerRunner() {
   // --- REFS ---
   const reqRef = useRef<number>(0);
   const playerX = useRef(50);
-  const gameSpeed = useRef(1.0);
+  const gameSpeed = useRef(INITIAL_SPEED);
   const frameCount = useRef(0);
   const obstacles = useRef<{ id: number; x: number; y: number; z: number; type: 'block' | 'coin' }[]>([]);
   
-  // Scroll Position (0% to -100%)
+  // Scroll Position (0% to -50%)
   const scrollX = useRef(0);
 
   // --- MOUSE CONTROL ---
@@ -36,13 +37,15 @@ export default function FlyerRunner() {
     if (!isPlaying) return;
     frameCount.current++;
     
-    // 1. SCROLL ENGINE (Horizontal Movement)
-    gameSpeed.current = Math.min(MAX_SPEED, gameSpeed.current + 0.0005);
+    // 1. SCROLL ENGINE
+    gameSpeed.current = Math.min(MAX_SPEED, gameSpeed.current + 0.0001); // Very slow acceleration
     
-    // Move LEFT (negative X) to simulate rushing forward
-    scrollX.current -= (0.5 * gameSpeed.current);
+    // Move LEFT (negative X)
+    // At speed 1.0, move 0.2% per frame
+    scrollX.current -= (0.2 * gameSpeed.current);
     
-    // Reset loop when we've scrolled past the first image width (-50% of the dual-image container)
+    // Reset loop when we've scrolled past the first image width (-50% of the container)
+    // The container holds 2 images, so 50% is exactly one full image width.
     if (scrollX.current <= -50) {
         scrollX.current += 50;
     }
@@ -59,7 +62,7 @@ export default function FlyerRunner() {
     }
 
     // 3. MOVE OBJECTS
-    obstacles.current.forEach(obs => obs.z -= (30 * gameSpeed.current));
+    obstacles.current.forEach(obs => obs.z -= (20 * gameSpeed.current));
     obstacles.current = obstacles.current.filter(obs => obs.z > -100);
 
     // 4. COLLISION
@@ -91,7 +94,7 @@ export default function FlyerRunner() {
     setScore(0);
     setGameOver(false);
     obstacles.current = [];
-    gameSpeed.current = 1.0;
+    gameSpeed.current = INITIAL_SPEED;
     playerX.current = 50;
     scrollX.current = 0;
     setIsPlaying(true);
@@ -119,20 +122,15 @@ export default function FlyerRunner() {
             >
                 {/* === LEFT WALL === */}
                 <div className="wall left-wall">
-                    <div className="track-container" style={{ transform: `translateX(${scrollX.current}%)` }}>
+                    {/* Track Container: Holds 2 images side-by-side. Width 200% relative to wall. */}
+                    <div className="track-container" style={{ transform: `translate3d(${scrollX.current}%, 0, 0)` }}>
                         
-                        {/* Image 1: First Half */}
+                        {/* Image 1: Left Crop */}
                         <div className="image-panel">
-                            {/* flipped-x puts the Road (Center) at the far right of this panel (Distance) */}
                             <img src="/assets/city_loop.png" className="texture-img left-crop flipped-x" alt="" />
                         </div>
                         
-                        {/* Image 2: Second Half (Seamless) */}
-                        <div className="image-panel">
-                             <img src="/assets/city_loop.png" className="texture-img left-crop flipped-x" alt="" />
-                        </div>
-                        
-                        {/* Buffer Image (To prevent flicker on fast scroll) */}
+                        {/* Image 2: Seamless Follower */}
                         <div className="image-panel">
                              <img src="/assets/city_loop.png" className="texture-img left-crop flipped-x" alt="" />
                         </div>
@@ -141,21 +139,15 @@ export default function FlyerRunner() {
 
                 {/* === RIGHT WALL === */}
                 <div className="wall right-wall">
-                    <div className="track-container" style={{ transform: `translateX(${scrollX.current}%)` }}>
+                    <div className="track-container" style={{ transform: `translate3d(${scrollX.current}%, 0, 0)` }}>
                         
-                        {/* Image 1 */}
+                        {/* Image 1: Right Crop */}
                         <div className="image-panel">
-                            {/* flipped-x puts the Road (Center) at the far right of this panel (Distance) */}
                             <img src="/assets/city_loop.png" className="texture-img right-crop flipped-x" alt="" />
                         </div>
                         
-                        {/* Image 2 */}
+                        {/* Image 2: Seamless Follower */}
                         <div className="image-panel">
-                             <img src="/assets/city_loop.png" className="texture-img right-crop flipped-x" alt="" />
-                        </div>
-
-                         {/* Buffer Image */}
-                         <div className="image-panel">
                              <img src="/assets/city_loop.png" className="texture-img right-crop flipped-x" alt="" />
                         </div>
                     </div>
@@ -223,10 +215,12 @@ export default function FlyerRunner() {
             /* --- WALL GEOMETRY --- */
             .wall {
                 position: absolute;
-                top: -50%; bottom: -50%;
+                /* RAISED SKYBOX: -250% Top makes the wall extend extremely high up */
+                top: -250%; 
+                bottom: -50%;
                 width: 5000px; /* Depth into screen */
                 background: #050505;
-                backface-visibility: visible;
+                backface-visibility: hidden; /* Fixes flickering */
                 overflow: hidden; 
             }
 
@@ -244,40 +238,35 @@ export default function FlyerRunner() {
                 border-bottom: 2px solid #0f0;
             }
 
-            /* --- TRACK CONTAINER (The Moving Strip) --- */
+            /* --- TRACK CONTAINER --- */
             .track-container {
-                display: flex; /* Horizontal Layout: Images side-by-side */
-                flex-direction: row; 
-                width: 300%; /* Enough for 3 images */
+                display: flex; /* Horizontal Layout */
+                width: 200%; /* Holds exactly 2 images */
                 height: 100%;
-                will-change: transform;
+                will-change: transform; /* Hint for GPU accel */
             }
 
             .image-panel {
-                width: 33.33%; /* 1/3 of the container width */
+                width: 50%; /* Each panel is 50% of container (100% of wall width) */
                 height: 100%;
                 position: relative;
-                overflow: hidden; /* For cropping */
+                overflow: hidden; 
             }
 
             .texture-img {
                 position: absolute;
                 height: 100%; 
-                width: 200%; /* Double width of panel to allow cropping */
+                width: 200%; /* Double width for cropping */
                 max-width: none;
+                /* Ensure no pixel gaps */
+                display: block; 
+                transform-style: preserve-3d;
             }
 
-            /* --- CROP & FLIP LOGIC --- */
-            /* Left Wall: Show Left Half of Image (0 to 50%) */
+            /* --- CROP & FLIP --- */
             .left-crop { left: 0; }
-            
-            /* Right Wall: Show Right Half of Image (-50% to 100%) */
             .right-crop { left: -100%; }
-
-            /* Flip Horizontal: Puts the "Center/Road" at the RIGHT edge of the panel.
-               Since we scroll LEFT (translateX -), the road moves away, or buildings come towards us. */
             .flipped-x { transform: scaleX(-1); }
-
 
             /* --- FLOOR & CEILING --- */
             .floor-plane {
