@@ -1,39 +1,39 @@
 import React from "react";
 
 // --- CONFIGURATION ---
-const SPEED = 3; // Seconds per loop (Lower = Faster)
 const WALL_LEFT_IMG = "/texture_leeds_left.png";
 const WALL_RIGHT_IMG = "/texture_leeds_right.png";
-const TUNNEL_DEPTH = "400vmax"; // How deep the tunnel renders
+const TUNNEL_DEPTH = "400vmax"; 
 
 interface TunnelViewProps {
-  speedModifier?: number; // Optional: to make the tunnel go faster/slower dynamically later
+  isPlaying?: boolean; 
+  speedModifier?: number;
 }
 
-export const TunnelView: React.FC<TunnelViewProps> = ({ speedModifier = 1 }) => {
-  // Calculate dynamic speed based on prop (useful for "boosting" in game)
-  const currentSpeed = SPEED / speedModifier;
+// 1. NAMED EXPORT (Allows: import { TunnelView } from ...)
+export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedModifier = 1 }) => {
+  
+  const animationDuration = isPlaying ? "3s" : "0s";
 
   return (
     <div
       style={{
         position: "absolute",
         inset: 0,
-        backgroundColor: "#87CEEB", // Fallback Sky Blue
+        backgroundColor: "#87CEEB",
         overflow: "hidden",
-        perspective: "300px", // Lower = more intense "speed" feeling
+        perspective: "300px", 
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         zIndex: 0, 
       }}
     >
-      {/* --- ANIMATION STYLES --- */}
       <style>
         {`
           @keyframes moveTexture {
             from { background-position: 0 0; }
-            to { background-position: 0 -1000px; } 
+            to { background-position: 0 -3000px; } 
           }
 
           @keyframes moveRoad {
@@ -44,43 +44,40 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ speedModifier = 1 }) => 
           .tunnel-plane {
             position: absolute;
             backface-visibility: hidden;
-            image-rendering: pixelated; /* CRISP PIXELS */
+            image-rendering: pixelated; 
           }
 
           .wall-texture {
-            background-size: 500px 500px; 
+            background-size: 1500px 1500px; 
             background-repeat: repeat;
-            animation: moveTexture ${currentSpeed}s linear infinite;
+            animation: moveTexture ${animationDuration} linear infinite;
             filter: brightness(0.9); 
           }
 
           .road-texture {
-             /* CSS GENERATED ASPHALT & LINES */
              background-color: #2a2a2a;
              background-image: 
                 linear-gradient(90deg, transparent 48%, #ffffff 48%, #ffffff 52%, transparent 52%);
              background-size: 100% 300px; 
-             animation: moveRoad ${currentSpeed * 0.3}s linear infinite; 
+             animation: moveRoad ${isPlaying ? "0.6s" : "0s"} linear infinite; 
           }
         `}
       </style>
 
-      {/* --- THE FOUR PLANES --- */}
-
-      {/* 1. CEILING (Sky) */}
+      {/* CEILING */}
       <div
         className="tunnel-plane"
         style={{
           width: "300vw",
           height: TUNNEL_DEPTH,
-          background: "linear-gradient(to bottom, #00BFFF, #87CEEB)", // Y2K Sky Gradient
+          background: "linear-gradient(to bottom, #00BFFF, #87CEEB)",
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%) rotateX(-90deg) translateZ(-50vh)",
         }}
       />
 
-      {/* 2. FLOOR (Road) */}
+      {/* FLOOR */}
       <div
         className="tunnel-plane road-texture"
         style={{
@@ -92,33 +89,33 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ speedModifier = 1 }) => 
         }}
       />
 
-      {/* 3. LEFT WALL (Shops Side A) */}
+      {/* LEFT WALL */}
       <div
         className="tunnel-plane wall-texture"
         style={{
           backgroundImage: `url('${WALL_LEFT_IMG}')`,
           width: TUNNEL_DEPTH,
-          height: "300vh", // Oversized to prevent cutoff
+          height: "300vh", 
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%) rotateY(90deg) translateZ(-50vw)",
         }}
       />
 
-      {/* 4. RIGHT WALL (Shops Side B - Mirrored) */}
+      {/* RIGHT WALL */}
       <div
         className="tunnel-plane wall-texture"
         style={{
           backgroundImage: `url('${WALL_RIGHT_IMG}')`,
           width: TUNNEL_DEPTH,
-          height: "300vh", // Oversized to prevent cutoff
+          height: "300vh", 
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%) rotateY(-90deg) translateZ(-50vw)",
         }}
       />
 
-      {/* --- DEPTH FOG --- */}
+      {/* FOG */}
       <div 
         style={{
             position: 'absolute',
@@ -131,4 +128,6 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ speedModifier = 1 }) => 
     </div>
   );
 };
+
+// 2. DEFAULT EXPORT (Allows: import TunnelView from ...)
 export default TunnelView;
