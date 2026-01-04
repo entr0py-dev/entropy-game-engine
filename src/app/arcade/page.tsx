@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
 import FlyerRunner from "@/components/minigames/FlyerRunner";
+import TunnelView from "@/components/TunnelView";
 
 function ArcadeContent() {
   const searchParams = useSearchParams();
