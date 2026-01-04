@@ -1,132 +1,115 @@
-import React from "react";
+"use client";
 
-// --- CONFIGURATION ---
-const WALL_LEFT_IMG = "/texture_leeds_left.png";
-const WALL_RIGHT_IMG = "/texture_leeds_right.png";
-const TUNNEL_DEPTH = "400vmax"; 
+import React, { useState, useEffect } from "react";
+import TunnelView from "@/components/TunnelView"; // Using Default Import now
+import Link from "next/link";
 
-interface TunnelViewProps {
-  isPlaying: boolean; // CONTROLS IF THE WORLD MOVES
-}
+export default function FlyRunnerPage() {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [score, setScore] = useState(0);
 
-export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying }) => {
-  
-  // LOGIC: If game is NOT playing, speed is 0 (Paused). 
-  // If playing, speed is 3 seconds per loop (Fast).
-  const animationDuration = isPlaying ? "3s" : "0s";
+  // KEYBOARD LISTENER
+  useEffect(() => {
+    // Ensure window has focus so keys register
+    window.focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        if (!isPlaying) {
+          setIsPlaying(true); // Start the game
+        }
+        // Jump logic will go here later
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isPlaying]);
+
+  // SCORE TICKER
+  useEffect(() => {
+    if (!isPlaying) return;
+    const interval = setInterval(() => {
+      setScore(prev => prev + 10);
+    }, 100);
+    return () => clearInterval(interval);
+  }, [isPlaying]);
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        backgroundColor: "#87CEEB",
-        overflow: "hidden",
-        perspective: "300px", 
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 0, 
-      }}
-    >
-      <style>
-        {`
-          @keyframes moveTexture {
-            from { background-position: 0 0; }
-            to { background-position: 0 -3000px; } /* Increased to match larger texture size */
-          }
+    <main style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "black" }}>
+      
+      {/* 1. THE 3D WORLD */}
+      <TunnelView isPlaying={isPlaying} />
 
-          @keyframes moveRoad {
-            from { background-position: 50% 0; }
-            to { background-position: 50% 1000px; } 
-          }
+      {/* 2. GAME UI OVERLAY */}
+      <div style={{ position: "relative", zIndex: 100, height: "100%", pointerEvents: "none" }}>
+        
+        {/* Top Bar */}
+        <div style={{ 
+            display: "flex", 
+            justifyContent: "space-between", 
+            padding: "20px",
+            fontFamily: "monospace",
+            color: "white",
+            textShadow: "2px 2px 0 #000"
+        }}>
+            <div>
+                <span style={{ background: isPlaying ? "red" : "gray", padding: "2px 6px" }}>
+                  {isPlaying ? "LIVE" : "PAUSED"}
+                </span> 
+                {' '}SCORE: {score.toString().padStart(5, '0')}
+            </div>
+            
+            <Link href="/" style={{ pointerEvents: "auto", textDecoration: "none" }}>
+                <div style={{ 
+                    background: "white", 
+                    color: "black", 
+                    padding: "4px 12px", 
+                    cursor: "pointer",
+                    border: "2px solid black",
+                    fontWeight: "bold"
+                }}>
+                    [X] EXIT
+                </div>
+            </Link>
+        </div>
 
-          .tunnel-plane {
-            position: absolute;
-            backface-visibility: hidden;
-            image-rendering: pixelated; 
-          }
+        {/* Start Prompt - Added Black Box for Visibility */}
+        {!isPlaying && (
+            <div style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                textAlign: "center",
+                color: "white",
+                fontFamily: "monospace",
+                zIndex: 200
+            }}>
+                <h1 style={{ 
+                    fontSize: "4rem", 
+                    margin: "0 0 20px 0", 
+                    textShadow: "4px 4px 0px #000",
+                    background: "rgba(0,0,0,0.5)",
+                    padding: "10px"
+                }}>
+                    CALL LANE
+                </h1>
+                
+                <div className="animate-pulse" style={{ 
+                    background: "black", 
+                    color: "#0f0", 
+                    padding: "15px 30px", 
+                    fontSize: "1.5rem",
+                    border: "2px solid #0f0",
+                    display: "inline-block"
+                }}>
+                    PRESS [SPACE] TO START
+                </div>
+            </div>
+        )}
 
-          .wall-texture {
-            /* FIXED: MUCH LARGER SIZE */
-            background-size: 1500px 1500px; 
-            background-repeat: repeat;
-            /* Animation speed is now dynamic */
-            animation: moveTexture ${animationDuration} linear infinite;
-            filter: brightness(0.9); 
-          }
-
-          .road-texture {
-             background-color: #2a2a2a;
-             background-image: 
-                linear-gradient(90deg, transparent 48%, #ffffff 48%, #ffffff 52%, transparent 52%);
-             background-size: 100% 300px; 
-             animation: moveRoad ${isPlaying ? "0.6s" : "0s"} linear infinite; 
-          }
-        `}
-      </style>
-
-      {/* 1. CEILING (Sky) */}
-      <div
-        className="tunnel-plane"
-        style={{
-          width: "300vw",
-          height: TUNNEL_DEPTH,
-          background: "linear-gradient(to bottom, #00BFFF, #87CEEB)",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%) rotateX(-90deg) translateZ(-50vh)",
-        }}
-      />
-
-      {/* 2. FLOOR (Road) */}
-      <div
-        className="tunnel-plane road-texture"
-        style={{
-          width: "300vw",
-          height: TUNNEL_DEPTH,
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%) rotateX(90deg) translateZ(-50vh)",
-        }}
-      />
-
-      {/* 3. LEFT WALL (Shops Side A) */}
-      <div
-        className="tunnel-plane wall-texture"
-        style={{
-          backgroundImage: `url('${WALL_LEFT_IMG}')`,
-          width: TUNNEL_DEPTH,
-          height: "300vh", 
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%) rotateY(90deg) translateZ(-50vw)",
-        }}
-      />
-
-      {/* 4. RIGHT WALL (Shops Side B) */}
-      <div
-        className="tunnel-plane wall-texture"
-        style={{
-          backgroundImage: `url('${WALL_RIGHT_IMG}')`,
-          width: TUNNEL_DEPTH,
-          height: "300vh", 
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%) rotateY(-90deg) translateZ(-50vw)",
-        }}
-      />
-
-      {/* DEPTH FOG */}
-      <div 
-        style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'radial-gradient(circle at center, transparent 10%, rgba(135, 206, 235, 0.8) 70%)',
-            pointerEvents: 'none',
-            zIndex: 10
-        }}
-      />
-    </div>
+      </div>
+    </main>
   );
-};
+}
