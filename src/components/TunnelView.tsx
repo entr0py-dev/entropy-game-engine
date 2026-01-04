@@ -10,10 +10,11 @@ interface TunnelViewProps {
   speedModifier?: number;
 }
 
-// 1. NAMED EXPORT (Allows: import { TunnelView } from ...)
+// 1. NAMED EXPORT
 export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedModifier = 1 }) => {
   
-  const animationDuration = isPlaying ? "3s" : "0s";
+  // If paused, animation speed is 0s
+  const animationDuration = isPlaying ? "2s" : "0s"; // Faster duration for speed sensation
 
   return (
     <div
@@ -22,7 +23,7 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
         inset: 0,
         backgroundColor: "#87CEEB",
         overflow: "hidden",
-        perspective: "300px", 
+        perspective: "250px", // Lower perspective = deeper, faster looking tunnel
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -31,14 +32,16 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
     >
       <style>
         {`
-          @keyframes moveTexture {
-            from { background-position: 0 0; }
-            to { background-position: 0 -3000px; } 
+          /* WALLS: Animate X-Axis (Sideways) because they are rotated 90deg */
+          @keyframes moveWall {
+            from { background-position-x: 0px; }
+            to { background-position-x: -2000px; } /* Negative brings it TOWARDS camera */
           }
 
+          /* ROAD: Animates Y-Axis (Vertical) because it is rotated flat */
           @keyframes moveRoad {
-            from { background-position: 50% 0; }
-            to { background-position: 50% 1000px; } 
+            from { background-position-y: 0px; }
+            to { background-position-y: 1000px; } 
           }
 
           .tunnel-plane {
@@ -48,18 +51,19 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
           }
 
           .wall-texture {
-            background-size: 1500px 1500px; 
-            background-repeat: repeat;
-            animation: moveTexture ${animationDuration} linear infinite;
+            /* FIXED: Auto width, 100% Height -> Stretches image to full wall height (Massive) */
+            background-size: auto 100%; 
+            background-repeat: repeat-x; /* Only repeat along the road, not up the sky */
+            animation: moveWall ${animationDuration} linear infinite;
             filter: brightness(0.9); 
           }
 
           .road-texture {
              background-color: #2a2a2a;
              background-image: 
-                linear-gradient(90deg, transparent 48%, #ffffff 48%, #ffffff 52%, transparent 52%);
+                linear-gradient(90deg, transparent 45%, #ffffff 45%, #ffffff 55%, transparent 55%);
              background-size: 100% 300px; 
-             animation: moveRoad ${isPlaying ? "0.6s" : "0s"} linear infinite; 
+             animation: moveRoad ${isPlaying ? "0.3s" : "0s"} linear infinite; 
           }
         `}
       </style>
@@ -95,9 +99,10 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
         style={{
           backgroundImage: `url('${WALL_LEFT_IMG}')`,
           width: TUNNEL_DEPTH,
-          height: "300vh", 
+          height: "200vh", // Massive height
           top: "50%",
           left: "50%",
+          /* Rotate Y 90deg puts it on the left. */
           transform: "translate(-50%, -50%) rotateY(90deg) translateZ(-50vw)",
         }}
       />
@@ -108,19 +113,20 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
         style={{
           backgroundImage: `url('${WALL_RIGHT_IMG}')`,
           width: TUNNEL_DEPTH,
-          height: "300vh", 
+          height: "200vh", // Massive height
           top: "50%",
           left: "50%",
+          /* Rotate Y -90deg puts it on the right. */
           transform: "translate(-50%, -50%) rotateY(-90deg) translateZ(-50vw)",
         }}
       />
 
-      {/* FOG */}
+      {/* FOG/VIGNETTE */}
       <div 
         style={{
             position: 'absolute',
             inset: 0,
-            background: 'radial-gradient(circle at center, transparent 10%, rgba(135, 206, 235, 0.8) 70%)',
+            background: 'radial-gradient(circle at center, transparent 0%, rgba(135, 206, 235, 1) 80%)',
             pointerEvents: 'none',
             zIndex: 10
         }}
@@ -129,5 +135,5 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
   );
 };
 
-// 2. DEFAULT EXPORT (Allows: import TunnelView from ...)
+// 2. DEFAULT EXPORT
 export default TunnelView;
