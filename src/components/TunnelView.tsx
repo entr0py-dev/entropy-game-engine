@@ -131,3 +131,4 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ speedModifier = 1 }) => 
     </div>
   );
 };
+export default TunnelView;
