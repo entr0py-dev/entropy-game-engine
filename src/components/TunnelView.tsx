@@ -14,7 +14,7 @@ interface TunnelViewProps {
 export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedModifier = 1 }) => {
   
   // If paused, animation speed is 0s
-  const animationDuration = isPlaying ? "2s" : "0s"; // Faster duration for speed sensation
+  const animationDuration = isPlaying ? "2s" : "0s"; 
 
   return (
     <div
@@ -23,7 +23,7 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
         inset: 0,
         backgroundColor: "#87CEEB",
         overflow: "hidden",
-        perspective: "250px", // Lower perspective = deeper, faster looking tunnel
+        perspective: "250px", 
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -32,13 +32,20 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
     >
       <style>
         {`
-          /* WALLS: Animate X-Axis (Sideways) because they are rotated 90deg */
-          @keyframes moveWall {
+          /* LEFT WALL: Slides pixels negatively (Standard) */
+          @keyframes moveWallLeft {
             from { background-position-x: 0px; }
-            to { background-position-x: -2000px; } /* Negative brings it TOWARDS camera */
+            to { background-position-x: -2000px; } 
           }
 
-          /* ROAD: Animates Y-Axis (Vertical) because it is rotated flat */
+          /* RIGHT WALL: Slides pixels positively (Reversed) */
+          /* This fixes the "moving backwards" issue */
+          @keyframes moveWallRight {
+            from { background-position-x: 0px; }
+            to { background-position-x: 2000px; } 
+          }
+
+          /* ROAD: Animates Y-Axis */
           @keyframes moveRoad {
             from { background-position-y: 0px; }
             to { background-position-y: 1000px; } 
@@ -50,11 +57,10 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
             image-rendering: pixelated; 
           }
 
-          .wall-texture {
-            /* FIXED: Auto width, 100% Height -> Stretches image to full wall height (Massive) */
-            background-size: auto 100%; 
-            background-repeat: repeat-x; /* Only repeat along the road, not up the sky */
-            animation: moveWall ${animationDuration} linear infinite;
+          .wall-base {
+            /* FIXED: Force image to be 200vh tall so it CANNOT stack twice */
+            background-size: auto 200vh; 
+            background-repeat: repeat-x; /* Horizontal repeat only */
             filter: brightness(0.9); 
           }
 
@@ -95,29 +101,31 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
 
       {/* LEFT WALL */}
       <div
-        className="tunnel-plane wall-texture"
+        className="tunnel-plane wall-base"
         style={{
           backgroundImage: `url('${WALL_LEFT_IMG}')`,
           width: TUNNEL_DEPTH,
-          height: "200vh", // Massive height
+          height: "200vh", 
           top: "50%",
           left: "50%",
-          /* Rotate Y 90deg puts it on the left. */
           transform: "translate(-50%, -50%) rotateY(90deg) translateZ(-50vw)",
+          /* Apply Left Animation */
+          animation: `moveWallLeft ${animationDuration} linear infinite`
         }}
       />
 
       {/* RIGHT WALL */}
       <div
-        className="tunnel-plane wall-texture"
+        className="tunnel-plane wall-base"
         style={{
           backgroundImage: `url('${WALL_RIGHT_IMG}')`,
           width: TUNNEL_DEPTH,
-          height: "200vh", // Massive height
+          height: "200vh", 
           top: "50%",
           left: "50%",
-          /* Rotate Y -90deg puts it on the right. */
           transform: "translate(-50%, -50%) rotateY(-90deg) translateZ(-50vw)",
+          /* Apply Right (Reversed) Animation */
+          animation: `moveWallRight ${animationDuration} linear infinite`
         }}
       />
 
