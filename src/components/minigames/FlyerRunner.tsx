@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import TunnelView from "@/components/TunnelView"; // Using Default Import now
+import TunnelView from "@/components/TunnelView"; 
 import Link from "next/link";
 
 export default function FlyRunnerPage() {
@@ -10,15 +10,16 @@ export default function FlyRunnerPage() {
 
   // KEYBOARD LISTENER
   useEffect(() => {
-    // Ensure window has focus so keys register
-    window.focus();
+    // Attempt to focus window immediately
+    if (typeof window !== "undefined") {
+        window.focus();
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Space") {
         if (!isPlaying) {
-          setIsPlaying(true); // Start the game
+          setIsPlaying(true); 
         }
-        // Jump logic will go here later
       }
     };
 
@@ -36,12 +37,16 @@ export default function FlyRunnerPage() {
   }, [isPlaying]);
 
   return (
-    <main style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "black" }}>
+    // ADDED CLICK HANDLER TO CONTAINER AS FALLBACK
+    <main 
+        onClick={() => !isPlaying && setIsPlaying(true)}
+        style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "black", cursor: "pointer" }}
+    >
       
-      {/* 1. THE 3D WORLD */}
+      {/* 3D WORLD */}
       <TunnelView isPlaying={isPlaying} />
 
-      {/* 2. GAME UI OVERLAY */}
+      {/* UI OVERLAY */}
       <div style={{ position: "relative", zIndex: 100, height: "100%", pointerEvents: "none" }}>
         
         {/* Top Bar */}
@@ -74,7 +79,7 @@ export default function FlyRunnerPage() {
             </Link>
         </div>
 
-        {/* Start Prompt - Added Black Box for Visibility */}
+        {/* Start Prompt */}
         {!isPlaying && (
             <div style={{
                 position: "absolute",
@@ -104,7 +109,7 @@ export default function FlyRunnerPage() {
                     border: "2px solid #0f0",
                     display: "inline-block"
                 }}>
-                    PRESS [SPACE] TO START
+                    PRESS [SPACE] OR CLICK
                 </div>
             </div>
         )}
