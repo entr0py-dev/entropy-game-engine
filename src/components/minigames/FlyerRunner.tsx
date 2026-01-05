@@ -1,28 +1,32 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import TunnelView from "@/components/TunnelView"; 
 import Link from "next/link";
 
 export default function FlyRunnerPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [score, setScore] = useState(0);
+  
+  // Ref to handle focus
+  const mainRef = useRef<HTMLElement>(null);
+
+  // START GAME HANDLER
+  const startGame = () => {
+    if (!isPlaying) {
+      setIsPlaying(true);
+      // Ensure focus is on the main div so keys register
+      mainRef.current?.focus();
+    }
+  };
 
   // KEYBOARD LISTENER
   useEffect(() => {
-    // Attempt to focus window immediately
-    if (typeof window !== "undefined") {
-        window.focus();
-    }
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Space") {
-        if (!isPlaying) {
-          setIsPlaying(true); 
-        }
+        startGame();
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isPlaying]);
@@ -37,13 +41,21 @@ export default function FlyRunnerPage() {
   }, [isPlaying]);
 
   return (
-    // ADDED CLICK HANDLER TO CONTAINER AS FALLBACK
     <main 
-        onClick={() => !isPlaying && setIsPlaying(true)}
-        style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "black", cursor: "pointer" }}
+        ref={mainRef}
+        onClick={startGame} // Clicking anywhere starts the game
+        style={{ 
+            width: "100vw", 
+            height: "100vh", 
+            position: "relative", 
+            overflow: "hidden", 
+            background: "black", 
+            cursor: "pointer",
+            outline: "none"
+        }}
     >
       
-      {/* 3D WORLD */}
+      {/* 3D WORLD - Controlled by state */}
       <TunnelView isPlaying={isPlaying} />
 
       {/* UI OVERLAY */}
@@ -59,10 +71,14 @@ export default function FlyRunnerPage() {
             textShadow: "2px 2px 0 #000"
         }}>
             <div>
-                <span style={{ background: isPlaying ? "red" : "gray", padding: "2px 6px" }}>
+                <span style={{ 
+                    background: isPlaying ? "red" : "gray", 
+                    padding: "2px 6px",
+                    marginRight: "10px"
+                }}>
                   {isPlaying ? "LIVE" : "PAUSED"}
                 </span> 
-                {' '}SCORE: {score.toString().padStart(5, '0')}
+                SCORE: {score.toString().padStart(5, '0')}
             </div>
             
             <Link href="/" style={{ pointerEvents: "auto", textDecoration: "none" }}>
@@ -79,7 +95,7 @@ export default function FlyRunnerPage() {
             </Link>
         </div>
 
-        {/* Start Prompt */}
+        {/* START SCREEN - Only shows when NOT playing */}
         {!isPlaying && (
             <div style={{
                 position: "absolute",
@@ -89,14 +105,14 @@ export default function FlyRunnerPage() {
                 textAlign: "center",
                 color: "white",
                 fontFamily: "monospace",
-                zIndex: 200
+                zIndex: 200,
+                width: "100%"
             }}>
                 <h1 style={{ 
-                    fontSize: "4rem", 
+                    fontSize: "5rem", 
                     margin: "0 0 20px 0", 
                     textShadow: "4px 4px 0px #000",
-                    background: "rgba(0,0,0,0.5)",
-                    padding: "10px"
+                    letterSpacing: "-2px"
                 }}>
                     CALL LANE
                 </h1>
@@ -107,10 +123,15 @@ export default function FlyRunnerPage() {
                     padding: "15px 30px", 
                     fontSize: "1.5rem",
                     border: "2px solid #0f0",
-                    display: "inline-block"
+                    display: "inline-block",
+                    boxShadow: "0 0 20px #0f0"
                 }}>
-                    PRESS [SPACE] OR CLICK
+                    PRESS [SPACE] TO START
                 </div>
+
+                <p style={{ marginTop: "20px", textShadow: "1px 1px 0 #000" }}>
+                    (Or click screen)
+                </p>
             </div>
         )}
 
