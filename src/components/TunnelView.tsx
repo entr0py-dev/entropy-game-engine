@@ -10,12 +10,20 @@ const TILE_SIZE = "1024px"; // Must match your image width exactly
 
 interface TunnelViewProps {
   isPlaying?: boolean; 
+  speedModifier?: number; // ADDED BACK TO FIX BUILD ERROR
 }
 
-export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true }) => {
+// 1. NAMED EXPORT
+export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedModifier = 1 }) => {
   
-  // If paused, animation speed is 0s
-  const animationDuration = isPlaying ? "1s" : "0s"; 
+  // Calculate duration based on speed modifier. 
+  // Base speed is 1 second per 1024px. 
+  // Higher modifier = Lower duration (Faster).
+  const baseDuration = 1; 
+  const calculatedDuration = isPlaying ? (baseDuration / speedModifier) : 0;
+  
+  // Convert to string with 's' unit, handling the 0 case safely
+  const animationDuration = calculatedDuration > 0 ? `${calculatedDuration}s` : "0s";
 
   return (
     <div
@@ -108,7 +116,7 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true }) => {
         style={{
           backgroundImage: `url('${WALL_LEFT_IMG}')`,
           width: TUNNEL_DEPTH,
-          height: "300vh", // Very Tall
+          height: "300vh", 
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%) rotateY(90deg) translateZ(-50vw)",
@@ -123,7 +131,7 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true }) => {
         style={{
           backgroundImage: `url('${WALL_RIGHT_IMG}')`,
           width: TUNNEL_DEPTH,
-          height: "300vh", // Very Tall
+          height: "300vh", 
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%) rotateY(-90deg) translateZ(-50vw)",
@@ -146,4 +154,5 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true }) => {
   );
 };
 
+// 2. DEFAULT EXPORT
 export default TunnelView;
