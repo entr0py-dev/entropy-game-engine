@@ -5,16 +5,17 @@ const WALL_LEFT_IMG = "/texture_leeds_left.png";
 const WALL_RIGHT_IMG = "/texture_leeds_right.png";
 const TUNNEL_DEPTH = "400vmax"; 
 
+// PRECISE MATH FOR SEAMLESS LOOP
+const TILE_SIZE = "1024px"; // Must match your image width exactly
+
 interface TunnelViewProps {
   isPlaying?: boolean; 
-  speedModifier?: number;
 }
 
-// 1. NAMED EXPORT
-export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedModifier = 1 }) => {
+export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true }) => {
   
   // If paused, animation speed is 0s
-  const animationDuration = isPlaying ? "2s" : "0s"; 
+  const animationDuration = isPlaying ? "1s" : "0s"; 
 
   return (
     <div
@@ -32,17 +33,16 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
     >
       <style>
         {`
-          /* LEFT WALL: Slides pixels negatively (Standard) */
+          /* LEFT WALL: Slides exactly 1 tile width negative */
           @keyframes moveWallLeft {
             from { background-position-x: 0px; }
-            to { background-position-x: -2000px; } 
+            to { background-position-x: -${TILE_SIZE}; } 
           }
 
-          /* RIGHT WALL: Slides pixels positively (Reversed) */
-          /* This fixes the "moving backwards" issue */
+          /* RIGHT WALL: Slides exactly 1 tile width positive (Reversed) */
           @keyframes moveWallRight {
             from { background-position-x: 0px; }
-            to { background-position-x: 2000px; } 
+            to { background-position-x: ${TILE_SIZE}; } 
           }
 
           /* ROAD: Animates Y-Axis */
@@ -58,9 +58,12 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
           }
 
           .wall-base {
-            /* FIXED: Force image to be 200vh tall so it CANNOT stack twice */
-            background-size: auto 200vh; 
-            background-repeat: repeat-x; /* Horizontal repeat only */
+            /* FIXED: 
+               Width = 1024px (Hardcoded to match animation)
+               Height = 100% of the wall (prevents stacking)
+            */
+            background-size: ${TILE_SIZE} 100%; 
+            background-repeat: repeat-x; /* STRICTLY Horizontal repeat only */
             filter: brightness(0.9); 
           }
 
@@ -105,7 +108,7 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
         style={{
           backgroundImage: `url('${WALL_LEFT_IMG}')`,
           width: TUNNEL_DEPTH,
-          height: "200vh", 
+          height: "300vh", // Very Tall
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%) rotateY(90deg) translateZ(-50vw)",
@@ -120,16 +123,16 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
         style={{
           backgroundImage: `url('${WALL_RIGHT_IMG}')`,
           width: TUNNEL_DEPTH,
-          height: "200vh", 
+          height: "300vh", // Very Tall
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%) rotateY(-90deg) translateZ(-50vw)",
-          /* Apply Right (Reversed) Animation */
+          /* Apply Right Animation */
           animation: `moveWallRight ${animationDuration} linear infinite`
         }}
       />
 
-      {/* FOG/VIGNETTE */}
+      {/* FOG */}
       <div 
         style={{
             position: 'absolute',
@@ -143,5 +146,4 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
   );
 };
 
-// 2. DEFAULT EXPORT
 export default TunnelView;
