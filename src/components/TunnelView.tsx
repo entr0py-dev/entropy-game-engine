@@ -1,13 +1,13 @@
 import React from "react";
 
 // --- CONFIGURATION ---
-// UPDATE THESE PATHS TO YOUR NEW FLAT IMAGES
-const WALL_LEFT_IMG = "/texture_leeds_left_flat.png";
-const WALL_RIGHT_IMG = "/texture_leeds_right_flat.png";
+// UPDATE THESE PATHS TO YOUR NEW V3 IMAGES
+const WALL_LEFT_IMG = "/texture_leeds_left_v3.png";
+const WALL_RIGHT_IMG = "/texture_leeds_right_v3.png";
 const TUNNEL_DEPTH = "400vmax"; 
 
-// PRECISE MATH FOR SEAMLESS LOOP
-const TILE_SIZE = "2048px"; // Matches new image width
+// PRECISE MATH FOR SEAMLESS LOOP - UPDATED FOR NEW 3072px WIDTH
+const TILE_SIZE = "3072px"; 
 
 interface TunnelViewProps {
   isPlaying?: boolean; 
@@ -16,7 +16,8 @@ interface TunnelViewProps {
 
 export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedModifier = 1 }) => {
   
-  const baseDuration = 2; // Slower base duration for wider image
+  // Slower base duration for wider image to keep speed feeling similar
+  const baseDuration = 3; 
   const calculatedDuration = isPlaying ? (baseDuration / speedModifier) : 0;
   const animationDuration = calculatedDuration > 0 ? `${calculatedDuration}s` : "0s";
 
@@ -51,7 +52,7 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
           /* ROAD: Animates Y-Axis */
           @keyframes moveRoad {
             from { background-position-y: 0px; }
-            to { background-position-y: 1000px; } 
+            to { background-position-y: 200px; } /* Moves by one dash cycle */
           }
 
           .tunnel-plane {
@@ -61,18 +62,26 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
           }
 
           .wall-base {
-            /* FIXED: Width=2048px, Height=100% */
+            /* FIXED: Width=3072px, Height=100% */
             background-size: ${TILE_SIZE} 100%; 
             background-repeat: repeat-x; /* Horizontal repeat only */
             filter: brightness(0.9); 
           }
 
           .road-texture {
-             background-color: #2a2a2a;
-             background-image: 
-                linear-gradient(90deg, transparent 45%, #ffffff 45%, #ffffff 55%, transparent 55%);
-             background-size: 100% 300px; 
-             animation: moveRoad ${isPlaying ? "0.3s" : "0s"} linear infinite; 
+             background-color: #333333; /* Darker grey to match new pavement */
+             /* Centered white dashed line */
+             background-image: repeating-linear-gradient(
+               to bottom,
+               #ffffff,
+               #ffffff 50px,   /* Dash length */
+               transparent 50px,
+               transparent 100px /* Gap length */
+             );
+             background-size: 20px 100%; /* Width of the dashed line */
+             background-position: center top; /* Center the line */
+             background-repeat: no-repeat;
+             animation: moveRoad ${isPlaying ? "0.2s" : "0s"} linear infinite; 
           }
         `}
       </style>
@@ -86,11 +95,11 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
           background: "linear-gradient(to bottom, #00BFFF, #87CEEB)",
           top: "50%",
           left: "50%",
-          transform: "translate(-50%, -50%) rotateX(-90deg) translateZ(-50vh)",
+          transform: "translate(-50%, -50%) rotateX(-90deg) translateZ(-40vh)",
         }}
       />
 
-      {/* FLOOR */}
+      {/* FLOOR (Road) */}
       <div
         className="tunnel-plane road-texture"
         style={{
@@ -98,7 +107,8 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
           height: TUNNEL_DEPTH,
           top: "50%",
           left: "50%",
-          transform: "translate(-50%, -50%) rotateX(90deg) translateZ(-50vh)",
+          /* Lowered (-40vh) for a better running perspective */
+          transform: "translate(-50%, -50%) rotateX(90deg) translateZ(-40vh)",
         }}
       />
 
@@ -108,11 +118,11 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
         style={{
           backgroundImage: `url('${WALL_LEFT_IMG}')`,
           width: TUNNEL_DEPTH,
-          height: "300vh", // Very Tall
+          height: "300vh", 
           top: "50%",
           left: "50%",
-          /* Nudged up slightly (-48vh) to align pavement with road */
-          transform: "translate(-50%, -50%) rotateY(90deg) translateZ(-48vw)",
+          /* Widened tunnel (-80vw) */
+          transform: "translate(-50%, -50%) rotateY(90deg) translateZ(-80vw)",
           animation: `moveWallLeft ${animationDuration} linear infinite`
         }}
       />
@@ -123,11 +133,11 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = true, speedM
         style={{
           backgroundImage: `url('${WALL_RIGHT_IMG}')`,
           width: TUNNEL_DEPTH,
-          height: "300vh", // Very Tall
+          height: "300vh", 
           top: "50%",
           left: "50%",
-          /* Nudged up slightly (-48vh) to align pavement with road */
-          transform: "translate(-50%, -50%) rotateY(-90deg) translateZ(-48vw)",
+          /* Widened tunnel (-80vw) */
+          transform: "translate(-50%, -50%) rotateY(-90deg) translateZ(-80vw)",
           animation: `moveWallRight ${animationDuration} linear infinite`
         }}
       />
