@@ -16,7 +16,6 @@ export default function FlyRunnerGame() {
   const mainRef = useRef<HTMLElement>(null);
   const SHIP_SPEED = 10;
   
-  // Game Loop Speed
   const animationDuration = isPlaying ? "1.0s" : "0s";
 
   // --- GAME START ---
@@ -31,9 +30,7 @@ export default function FlyRunnerGame() {
   // --- CONTROLS ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === "Space" && !isPlaying) {
-        startGame();
-      }
+      if (e.code === "Space" && !isPlaying) startGame();
 
       if (isPlaying) {
         if (e.key === "ArrowLeft" || e.key === "a") {
@@ -62,8 +59,9 @@ export default function FlyRunnerGame() {
         onClick={startGame} 
         style={{ 
             width: "100vw", height: "100vh", position: "relative", 
-            overflow: "hidden", background: "#111", outline: "none",
-            userSelect: "none"
+            overflow: "hidden", outline: "none", userSelect: "none",
+            // SKY BACKGROUND: Applied to the container so nothing "clips" the walls
+            background: "linear-gradient(to bottom, #020024 0%, #090979 40%, #00d4ff 100%)"
         }}
     >
       {/* ========================================================
@@ -71,8 +69,7 @@ export default function FlyRunnerGame() {
          ======================================================== */}
       <div style={{
           position: "absolute", inset: 0,
-          // FIX 1: Increased perspective to 600px to reduce vertical distortion (prevents clipping)
-          perspective: "600px", 
+          perspective: "350px", // Restored perspective for depth
           overflow: "hidden",
           pointerEvents: "none"
       }}>
@@ -93,68 +90,64 @@ export default function FlyRunnerGame() {
             `}
         </style>
 
-        {/* 1. SKY */}
-        <div style={{
-            position: "absolute", top: "50%", left: "50%",
-            width: "300vw", height: "400vmax",
-            background: "linear-gradient(to bottom, #020024, #00d4ff)",
-            transform: "translate(-50%, -50%) rotateX(-90deg) translateZ(-40vh)",
-            backfaceVisibility: "hidden"
-        }} />
+        {/* --- NO CEILING PLANE (Fixes "Invisible Line" clipping) --- */}
 
-        {/* 2. ROAD */}
+        {/* ROAD */}
         <div style={{
             position: "absolute", top: "50%", left: "50%",
             width: "300vw", height: "400vmax",
             backgroundColor: "#222",
             backgroundImage: "repeating-linear-gradient(to bottom, #fff, #fff 50px, transparent 50px, transparent 100px)",
             backgroundSize: "20px 100%", backgroundPosition: "center top", backgroundRepeat: "no-repeat",
-            transform: "translate(-50%, -50%) rotateX(90deg) translateZ(-40vh)",
+            // Road Position: 30vh below center
+            transform: "translate(-50%, -50%) rotateX(90deg) translateZ(-30vh)",
             animation: `moveRoad ${isPlaying ? "0.2s" : "0s"} linear infinite`
         }} />
 
-        {/* 3. LEFT WALL */}
+        {/* LEFT WALL */}
         <div style={{
             position: "absolute", top: "50%", left: "50%",
             width: "400vmax", 
-            height: "800vh", // Keep wall container huge
+            height: "800vh", // Massive height container
             backgroundImage: `url('${WALL_LEFT_IMG}')`,
             
-            // FIX 2: Set texture height to 85vh. 
-            // This ensures the building only takes up 85% of the screen height, leaving 15% for sky.
-            backgroundSize: `${TILE_SIZE} 85vh`, 
+            // FULL HEIGHT DISPLAY: Scale image to fill viewport height mostly
+            backgroundSize: `${TILE_SIZE} 100vh`, 
             
             backgroundRepeat: "repeat-x",
             backgroundPosition: "left bottom", 
-            // Moved TranslateZ back slightly (-130vw) to widen the street view
-            transform: "translate(-50%, -94%) rotateY(90deg) translateZ(-130vw)",
+            
+            // TRANSFORM: 
+            // translateZ(-90vw): Brought closer (was -130vw)
+            // translate(-50%, -90%): Moves the wall up so bottom matches road level roughly
+            transform: "translate(-50%, -90%) rotateY(90deg) translateZ(-90vw)",
+            
             animation: `moveWallLeft ${animationDuration} linear infinite`,
             backfaceVisibility: "hidden",
             filter: "brightness(0.9)"
         }} />
 
-        {/* 4. RIGHT WALL */}
+        {/* RIGHT WALL */}
         <div style={{
             position: "absolute", top: "50%", left: "50%",
             width: "400vmax", 
             height: "800vh",
             backgroundImage: `url('${WALL_RIGHT_IMG}')`,
-            
-            // FIX 2: Match Left Wall
-            backgroundSize: `${TILE_SIZE} 85vh`,
-            
+            backgroundSize: `${TILE_SIZE} 100vh`,
             backgroundRepeat: "repeat-x",
             backgroundPosition: "left bottom",
-            transform: "translate(-50%, -94%) rotateY(-90deg) translateZ(-130vw)",
+            
+            transform: "translate(-50%, -90%) rotateY(-90deg) translateZ(-90vw)",
+            
             animation: `moveWallRight ${animationDuration} linear infinite`,
             backfaceVisibility: "hidden",
             filter: "brightness(0.9)"
         }} />
 
-        {/* 5. FOG */}
+        {/* FOG (Distance Hiding) */}
         <div style={{
             position: "absolute", inset: 0,
-            background: "radial-gradient(circle at center, transparent 30%, #000 95%)",
+            background: "radial-gradient(circle at center, transparent 40%, #000 90%)",
             zIndex: 10
         }} />
       </div>
