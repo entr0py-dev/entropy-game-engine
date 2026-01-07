@@ -7,21 +7,30 @@ import Link from "next/link";
 const WALL_LEFT_IMG = "/texture_leeds_left_v3.png";
 const WALL_RIGHT_IMG = "/texture_leeds_right_v3.png";
 
-// IMPORTANT: This must match your image width exactly to prevent skipping.
-// Since we are scaling height to 100%, the width might scale dynamically.
-// We use a large percent for movement to ensure smooth loops.
-const TILE_WIDTH = "2048px"; 
+// [CRITICAL FIX] Exact width of your image. 
+// This ensures the animation loop aligns perfectly with no skip.
+const TILE_WIDTH = "2912px"; 
 
 export default function FlyRunnerGame() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [score, setScore] = useState(0);
   
   // LANE SYSTEM: -2 (Far Left) to 2 (Far Right)
-  // 0 is Center. 5 Lanes Total.
   const [lane, setLane] = useState(0); 
   
   const mainRef = useRef<HTMLElement>(null);
-  const animationDuration = isPlaying ? "4s" : "0s"; // Slower loop for smoothness
+
+  // ALGORITHMIC DIFFICULTY: Speed increases with score
+  const calculateSpeed = () => {
+    if (!isPlaying) return "0s";
+    const maxSpeed = 1.0; 
+    const minSpeed = 4.0;
+    // Reach max speed at 5000 points
+    const decay = Math.min(1, score / 5000); 
+    const current = minSpeed - (decay * (minSpeed - maxSpeed));
+    return `${current}s`;
+  };
+  const animationDuration = calculateSpeed();
 
   // --- GAME START ---
   const startGame = () => {
@@ -39,10 +48,10 @@ export default function FlyRunnerGame() {
 
       if (isPlaying) {
         if (e.key === "ArrowLeft" || e.key === "a") {
-          setLane(prev => Math.max(prev - 1, -2)); // Cap at Lane -2
+          setLane(prev => Math.max(prev - 1, -2)); 
         }
         if (e.key === "ArrowRight" || e.key === "d") {
-          setLane(prev => Math.min(prev + 1, 2));  // Cap at Lane 2
+          setLane(prev => Math.min(prev + 1, 2));  
         }
       }
     };
@@ -50,7 +59,7 @@ export default function FlyRunnerGame() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isPlaying]);
 
-  // --- SCORE ---
+  // --- SCORE LOOP ---
   useEffect(() => {
     if (!isPlaying) return;
     const interval = setInterval(() => setScore(prev => prev + 10), 100);
@@ -69,13 +78,11 @@ export default function FlyRunnerGame() {
       
       backgroundImage: `url('${img}')`,
       
-      // FIX FOR CLIPPING & STRETCHING:
-      // Height = 100% (Fills the 400vh container).
-      // Width = Auto (Scales proportionally so buildings don't look fat/thin).
-      backgroundSize: `auto 100%`, 
+      // TEXTURE: Fixed width (2912px) to match loop, Auto height to preserve aspect ratio
+      backgroundSize: `${TILE_WIDTH} auto`, 
       
       backgroundRepeat: "repeat-x",
-      backgroundPosition: "left bottom", // Anchor to road
+      backgroundPosition: "left bottom", // Anchor shops to road
 
       // ANIMATION
       willChange: "background-position", 
@@ -91,7 +98,7 @@ export default function FlyRunnerGame() {
       `,
       
       backfaceVisibility: "hidden",
-      filter: "brightness(0.8)" // Slightly dark to blend with fog
+      filter: "brightness(0.8)" 
   });
 
   return (
@@ -102,7 +109,7 @@ export default function FlyRunnerGame() {
         style={{ 
             width: "100vw", height: "100vh", position: "relative", 
             overflow: "hidden", outline: "none", userSelect: "none",
-            background: "black" // PURE BLACK BACKGROUND (No Blue Vignette)
+            background: "black" 
         }}
     >
       {/* ========================================================
@@ -134,12 +141,11 @@ export default function FlyRunnerGame() {
         {/* ROAD (5 LANES) */}
         <div style={{
             position: "absolute", top: "50%", left: "50%",
-            width: "180vw", // Width to accommodate 5 lanes comfortably
+            width: "180vw", 
             height: "800vh",
             backgroundColor: "#222",
             
             // 5 LANES = 4 DIVIDER LINES
-            // We use a repeating gradient to draw the lines
             backgroundImage: `
                 linear-gradient(to right, 
                     transparent 19%, rgba(255,255,255,0.3) 20%, transparent 21%,
@@ -154,7 +160,7 @@ export default function FlyRunnerGame() {
             transform: "translate(-50%, -50%) rotateX(90deg) translateZ(-25vh)",
             animation: `moveRoad ${isPlaying ? "0.2s" : "0s"} linear infinite`,
             
-            // FOG MASK: Fades the road into the black background
+            // FOG MASK
             maskImage: "linear-gradient(to bottom, black 0%, black 40%, transparent 100%)",
             WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 40%, transparent 100%)"
         }} />
@@ -165,7 +171,7 @@ export default function FlyRunnerGame() {
         {/* RIGHT WALL */}
         <div style={getWallStyle(WALL_RIGHT_IMG, 'right')} />
 
-        {/* DISTANCE FOG (Radial - Black Only) */}
+        {/* DISTANCE FOG */}
         <div style={{
             position: "absolute", inset: 0,
             background: "radial-gradient(circle at center, transparent 20%, #000 90%)",
@@ -182,7 +188,7 @@ export default function FlyRunnerGame() {
             position: "absolute", bottom: "10%", left: "50%",
             // Lane Calculation: Move 12vw per lane step
             transform: `translateX(-50%) translateX(${lane * 12}vw)`, 
-            transition: "transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275)", // Bouncy snap
+            transition: "transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)", 
             zIndex: 50, pointerEvents: "none"
       }}>
         {/* Glow */}
