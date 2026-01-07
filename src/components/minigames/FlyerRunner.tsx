@@ -1,108 +1,223 @@
-"use client"
+"use client";
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 
-export default function FlyerRunner() {
-  // --- GAME STATE ---
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [lane, setLane] = useState(1) // 0=Top, 1=Mid, 2=Bot
+// --- ASSET CONFIGURATION ---
+// Make sure these match your filenames in /public/ exactly
+const WALL_LEFT_IMG = "/texture_leeds_left_v3.png";
+const WALL_RIGHT_IMG = "/texture_leeds_right_v3.png";
+const TILE_SIZE = "3072px"; // The width of your texture file
+
+export default function FlyRunnerPage() {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [score, setScore] = useState(0);
+  const [shipPosition, setShipPosition] = useState(0);
   
+  // Focus management
+  const mainRef = useRef<HTMLElement>(null);
+  const SHIP_SPEED = 10;
+  
+  // Game Loop Speed (1.0s = Medium Fast)
+  const animationDuration = isPlaying ? "1.0s" : "0s";
+
+  // --- GAME START LOGIC ---
+  const startGame = () => {
+    if (!isPlaying) {
+      console.log("🚀 STARTING ENGINE...");
+      setIsPlaying(true);
+      // Force focus to capture keys
+      setTimeout(() => mainRef.current?.focus(), 10);
+    }
+  };
+
   // --- CONTROLS ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isPlaying) return
-      
-      // Prevent scrolling the page when playing
-      if(["ArrowUp", "ArrowDown", " "].includes(e.key)) {
-        e.preventDefault()
+      if (e.code === "Space" && !isPlaying) {
+        startGame();
       }
 
-      if (e.key === "ArrowUp" || e.key === "w") {
-        setLane((prev) => Math.max(0, prev - 1))
+      if (isPlaying) {
+        if (e.key === "ArrowLeft" || e.key === "a") {
+          setShipPosition(prev => Math.max(prev - SHIP_SPEED, -90));
+        }
+        if (e.key === "ArrowRight" || e.key === "d") {
+          setShipPosition(prev => Math.min(prev + SHIP_SPEED, 90));
+        }
       }
-      if (e.key === "ArrowDown" || e.key === "s") {
-        setLane((prev) => Math.min(2, prev + 1))
-      }
-    }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isPlaying]);
 
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [isPlaying])
+  // --- SCORE TIMER ---
+  useEffect(() => {
+    if (!isPlaying) return;
+    const interval = setInterval(() => setScore(prev => prev + 10), 100);
+    return () => clearInterval(interval);
+  }, [isPlaying]);
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-4 flex flex-col items-center">
+    <main 
+        ref={mainRef}
+        tabIndex={0} 
+        onClick={startGame} // Clicking anywhere attempts to start
+        style={{ 
+            width: "100vw", height: "100vh", position: "relative", 
+            overflow: "hidden", background: "#111", outline: "none",
+            userSelect: "none"
+        }}
+    >
+      {/* ========================================================
+          THE VISUAL ENGINE (CSS 2.5D)
+         ======================================================== */}
+      <div style={{
+          position: "absolute", inset: 0,
+          perspective: "350px", // Controls how "deep" the tunnel feels
+          overflow: "hidden",
+          pointerEvents: "none" // Let clicks pass through to main
+      }}>
+        <style>
+            {`
+            @keyframes moveWallLeft {
+                from { background-position-x: 0px; }
+                to { background-position-x: -${TILE_SIZE}; } 
+            }
+            @keyframes moveWallRight {
+                from { background-position-x: 0px; }
+                to { background-position-x: ${TILE_SIZE}; } 
+            }
+            @keyframes moveRoad {
+                from { background-position-y: 0px; }
+                to { background-position-y: 200px; } 
+            }
+            `}
+        </style>
+
+        {/* 1. SKY / CEILING */}
+        <div style={{
+            position: "absolute", top: "50%", left: "50%",
+            width: "300vw", height: "400vmax",
+            background: "linear-gradient(to bottom, #020024, #00d4ff)",
+            transform: "translate(-50%, -50%) rotateX(-90deg) translateZ(-40vh)",
+            backfaceVisibility: "hidden"
+        }} />
+
+        {/* 2. ROAD */}
+        <div style={{
+            position: "absolute", top: "50%", left: "50%",
+            width: "300vw", height: "400vmax",
+            backgroundColor: "#222",
+            backgroundImage: "repeating-linear-gradient(to bottom, #fff, #fff 50px, transparent 50px, transparent 100px)",
+            backgroundSize: "20px 100%", backgroundPosition: "center top", backgroundRepeat: "no-repeat",
+            transform: "translate(-50%, -50%) rotateX(90deg) translateZ(-40vh)",
+            animation: `moveRoad ${isPlaying ? "0.2s" : "0s"} linear infinite`
+        }} />
+
+        {/* 3. LEFT WALL (With Roof Fix) */}
+        <div style={{
+            position: "absolute", top: "50%", left: "50%",
+            width: "400vmax", 
+            height: "800vh", // MASSIVE HEIGHT = No clipped roofs
+            backgroundImage: `url('${WALL_LEFT_IMG}')`,
+            backgroundSize: `${TILE_SIZE} 130vh`, // Height matches the "visible" area we want
+            backgroundRepeat: "repeat-x",
+            backgroundPosition: "left bottom", // Anchor image to bottom
+            // Move container UP (-94%) so the bottom (shops) aligns with road
+            transform: "translate(-50%, -94%) rotateY(90deg) translateZ(-110vw)",
+            animation: `moveWallLeft ${animationDuration} linear infinite`,
+            backfaceVisibility: "hidden",
+            filter: "brightness(0.9)"
+        }} />
+
+        {/* 4. RIGHT WALL (With Roof Fix) */}
+        <div style={{
+            position: "absolute", top: "50%", left: "50%",
+            width: "400vmax", 
+            height: "800vh",
+            backgroundImage: `url('${WALL_RIGHT_IMG}')`,
+            backgroundSize: `${TILE_SIZE} 130vh`,
+            backgroundRepeat: "repeat-x",
+            backgroundPosition: "left bottom",
+            transform: "translate(-50%, -94%) rotateY(-90deg) translateZ(-110vw)",
+            animation: `moveWallRight ${animationDuration} linear infinite`,
+            backfaceVisibility: "hidden",
+            filter: "brightness(0.9)"
+        }} />
+
+        {/* 5. FOG (Hides the end) */}
+        <div style={{
+            position: "absolute", inset: 0,
+            background: "radial-gradient(circle at center, transparent 30%, #000 95%)",
+            zIndex: 10
+        }} />
+      </div>
+
+      {/* ========================================================
+          GAME OBJECTS & UI
+         ======================================================== */}
       
-      {/* GAME CONSOLE CONTAINER */}
-      <div 
-        className="relative w-full h-[400px] overflow-hidden border-4 border-zinc-800 bg-sky-900 shadow-2xl rounded-lg"
-        style={{ imageRendering: "pixelated" }} // Keeps the retro crispness
-      >
+      {/* THE SHIP */}
+      <div style={{
+            position: "absolute", bottom: "15%", left: "50%",
+            transform: `translateX(-50%) translateX(${shipPosition * 4}px)`, 
+            transition: "transform 0.05s linear", zIndex: 50, pointerEvents: "none"
+      }}>
+        {/* Neon Pink Triangle */}
+        <div style={{ 
+            width: "0", height: "0", 
+            borderLeft: "20px solid transparent", 
+            borderRight: "20px solid transparent",
+            borderBottom: "60px solid #ff00ff", 
+            filter: "drop-shadow(0 0 10px #ff00ff)"
+        }} />
+      </div>
+
+      {/* UI OVERLAY */}
+      <div style={{ position: "relative", zIndex: 100, height: "100%", pointerEvents: "none" }}>
         
-        {/* --- LAYER 1: THE SKY (Static or Slow) --- */}
-        {/* If your city png has transparent sky, this color shows through */}
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-900 to-slate-800" />
+        {/* HUD */}
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "20px", color: "white", fontFamily: "monospace", textShadow: "2px 2px 0 #000" }}>
+            <div>
+                <span style={{ background: isPlaying ? "red" : "gray", padding: "2px 6px", marginRight: "10px" }}>
+                  {isPlaying ? "LIVE" : "PAUSED"}
+                </span> 
+                SCORE: {score.toString().padStart(5, '0')}
+            </div>
+            
+            <Link href="/" style={{ pointerEvents: "auto", textDecoration: "none" }}>
+                <div style={{ background: "white", color: "black", padding: "4px 12px", border: "2px solid black", fontWeight: "bold", cursor: "pointer" }}>
+                    EXIT
+                </div>
+            </Link>
+        </div>
 
-        {/* --- LAYER 2: THE CITY (Your Asset) --- */}
-        <div 
-          className="absolute inset-0 h-full w-full"
-          style={{
-            backgroundImage: 'url("/assets/city_loop.png")', // <--- YOUR FILE
-            backgroundRepeat: 'repeat-x',
-            backgroundPosition: 'bottom left',
-            backgroundSize: 'auto 100%', // Fits height, repeats width
-            // ANIMATION: Scrolls left forever
-            animation: isPlaying ? 'scrollCity 8s linear infinite' : 'none',
-          }}
-        />
-
-        {/* --- LAYER 3: THE PLAYER (Green Box) --- */}
-        {isPlaying && (
-          <div 
-            className="absolute left-20 w-12 h-16 bg-green-500 border-2 border-white transition-all duration-150 ease-out z-10"
-            style={{
-              // Simple math to place player in lanes
-              top: lane === 0 ? "55%" : lane === 1 ? "70%" : "85%", 
-              transform: "translateY(-100%)", // Anchor to feet
-              boxShadow: "0 10px 20px rgba(0,0,0,0.5)"
-            }}
-          >
-            {/* "Head" of the intern */}
-            <div className="absolute -top-4 left-2 w-8 h-8 bg-green-300 border border-black"></div>
-          </div>
-        )}
-
-        {/* --- UI: START SCREEN --- */}
+        {/* START SCREEN (This replaces "TESTING 3D ENGINE") */}
         {!isPlaying && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-20 backdrop-blur-sm">
-            <h1 className="text-4xl font-black text-white italic tracking-tighter mb-2">
-              FLYER RUN <span className="text-green-500">2026</span>
-            </h1>
-            <p className="text-zinc-400 font-mono text-sm mb-6">
-              LEEDS IS CALLING. PROMO NEVER SLEEPS.
-            </p>
-            <button 
-              onClick={() => setIsPlaying(true)}
-              className="px-8 py-3 bg-green-500 hover:bg-green-400 text-black font-bold font-mono text-xl uppercase skew-x-[-10deg] transition-transform active:scale-95"
-            >
-              Start Shift
-            </button>
-          </div>
+            <div style={{
+                position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+                textAlign: "center", color: "white", fontFamily: "monospace", pointerEvents: "none", width: "100%"
+            }}>
+                <h1 style={{ fontSize: "5rem", margin: "0 0 20px 0", textShadow: "4px 4px 0px #000", letterSpacing: "-2px" }}>
+                    CALL LANE
+                </h1>
+                <div className="animate-pulse" style={{ background: "black", color: "#0f0", padding: "15px 30px", fontSize: "1.5rem", border: "2px solid #0f0", display: "inline-block", boxShadow: "0 0 20px #0f0" }}>
+                    CLICK TO START
+                </div>
+                <div style={{ marginTop: "20px", fontSize: "0.8rem", opacity: 0.7 }}>
+                    (Or press SPACE)
+                </div>
+            </div>
         )}
-
-      </div>
-      
-      {/* --- INSTRUCTIONS --- */}
-      <div className="mt-4 text-zinc-500 font-mono text-xs">
-        [UP/DOWN] CHANGE LANE • [SPACE] THROW FLYER (Coming Soon)
       </div>
 
-      {/* --- CSS FOR SCROLLING --- */}
-      <style jsx>{`
-        @keyframes scrollCity {
-          from { background-position: 0 bottom; }
-          to { background-position: -1000px bottom; } /* Tweak 1000px to match your image width roughly */
-        }
-      `}</style>
-    </div>
-  )
+      {/* CLICK CATCHER (For Safety) */}
+      {!isPlaying && (
+        <div style={{
+            position: "absolute", inset: 0, zIndex: 9999, cursor: "pointer"
+        }} onClick={startGame} />
+      )}
+    </main>
+  );
 }
