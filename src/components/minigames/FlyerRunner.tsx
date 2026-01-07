@@ -6,31 +6,27 @@ import Link from "next/link";
 // --- CONFIGURATION ---
 const WALL_LEFT_IMG = "/texture_leeds_left_v3.png";
 const WALL_RIGHT_IMG = "/texture_leeds_right_v3.png";
-
-// CRITICAL: Matches your 2912px image width exactly
 const TILE_WIDTH = "2912px"; 
 
 export default function FlyRunnerGame() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [score, setScore] = useState(0);
-  
-  // 5 LANES: -2, -1, 0, 1, 2
-  const [lane, setLane] = useState(0); 
+  const [lane, setLane] = useState(0); // -2 to 2
   
   const mainRef = useRef<HTMLElement>(null);
 
-  // Speed Curve
+  // SPEED CURVE (Logarithmic - Treatise Section 5.1)
   const calculateSpeed = () => {
     if (!isPlaying) return "0s";
     const maxSpeed = 1.0; 
-    const minSpeed = 4.0;
-    const decay = Math.min(1, score / 5000); 
+    const minSpeed = 3.5;
+    const decay = Math.min(1, score / 6000); 
     const current = minSpeed - (decay * (minSpeed - maxSpeed));
     return `${current}s`;
   };
   const animationDuration = calculateSpeed();
 
-  // --- GAME START ---
+  // --- CONTROLS ---
   const startGame = () => {
     if (!isPlaying) {
       console.log("🚀 STARTING ENGINE...");
@@ -39,62 +35,53 @@ export default function FlyRunnerGame() {
     }
   };
 
-  // --- CONTROLS ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Space" && !isPlaying) startGame();
-
       if (isPlaying) {
-        if (e.key === "ArrowLeft" || e.key === "a") {
-          setLane(prev => Math.max(prev - 1, -2)); 
-        }
-        if (e.key === "ArrowRight" || e.key === "d") {
-          setLane(prev => Math.min(prev + 1, 2));  
-        }
+        if (e.key === "ArrowLeft" || e.key === "a") setLane(p => Math.max(p - 1, -2)); 
+        if (e.key === "ArrowRight" || e.key === "d") setLane(p => Math.min(p + 1, 2));  
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isPlaying]);
 
-  // --- SCORE LOOP ---
   useEffect(() => {
     if (!isPlaying) return;
     const interval = setInterval(() => setScore(prev => prev + 10), 100);
     return () => clearInterval(interval);
   }, [isPlaying]);
 
-  // --- WALL STYLE ---
+  // --- 3D TRANSFORM GENERATOR ---
   const getWallStyle = (img: string, side: 'left' | 'right'): React.CSSProperties => ({
-      position: "absolute", 
-      top: "50%", 
-      left: "50%",
+      position: "absolute", top: "50%", left: "50%",
       
-      // CONTAINER: Massive height to ensure roofs are never clipped
-      width: "1000vw", 
-      height: "400vh", 
+      // CONTAINER: 400vh Height prevents top clipping
+      width: "800vw", height: "400vh", 
       
       backgroundImage: `url('${img}')`,
       backgroundSize: `${TILE_WIDTH} auto`, 
       backgroundRepeat: "repeat-x",
-      backgroundPosition: "left bottom", // Anchors image to the bottom (road level)
+      backgroundPosition: "left bottom", // Anchor to street level
 
       willChange: "background-position", 
       animation: side === 'left' 
         ? `moveWallLeft ${animationDuration} linear infinite`
         : `moveWallRight ${animationDuration} linear infinite`,
 
-      // TRANSFORM (ALIGNMENT FIX):
-      // 1. translateY(-50%): Centers the wall vertically roughly around the horizon.
-      // 2. translateZ(-65vw): Pushes walls out to the side to match the wider road.
+      // STREET ALIGNMENT TRANSFORM:
+      // translateY(-50%): Centers the wall vertically. 
+      //    Since the road is also centered, the "bottom" of the wall sits on the road.
+      // translateZ(-40vw): PULLS WALLS IN TIGHT. This makes it feel like a real street.
       transform: `
         translate(-50%, -50%) 
         rotateY(${side === 'left' ? '90deg' : '-90deg'}) 
-        translateZ(-65vw)
+        translateZ(-40vw) 
       `,
       
       backfaceVisibility: "hidden",
-      filter: "brightness(0.9)" 
+      filter: "brightness(0.85)" 
   });
 
   return (
@@ -109,71 +96,53 @@ export default function FlyRunnerGame() {
         }}
     >
       {/* ========================================================
-          VISUAL ENGINE
+          THE CURVED WORLD ENGINE
          ======================================================== */}
       <div style={{
           position: "absolute", inset: 0,
-          perspective: "300px", 
-          
-          // CRITICAL FIX: HIGH HORIZON
-          // 25% moves the vanishing point UP. This makes the floor take up 
-          // the bottom 75% of the screen, solving the "floor too low" issue.
-          perspectiveOrigin: "50% 25%",
-          
+          perspective: "250px", // Aggressive perspective for speed feel
+          perspectiveOrigin: "50% 40%", // Lowers camera slightly to look "forward" down the street
           overflow: "hidden",
-          pointerEvents: "none"
+          pointerEvents: "none",
+
+          // --- THE CURVED HORIZON TRICK ---
+          // Instead of a linear fade, we use a RADIAL mask at the top-center.
+          // This creates a curved "terminator" line where the world drops away.
+          maskImage: "radial-gradient(circle at 50% 40%, black 20%, transparent 80%)",
+          WebkitMaskImage: "radial-gradient(circle at 50% 40%, black 20%, transparent 80%)"
       }}>
         <style>
             {`
-            @keyframes moveWallLeft {
-                from { background-position-x: 0px; }
-                to { background-position-x: -${TILE_WIDTH}; } 
-            }
-            @keyframes moveWallRight {
-                from { background-position-x: 0px; }
-                to { background-position-x: ${TILE_WIDTH}; } 
-            }
-            @keyframes moveRoad {
-                from { background-position-y: 0px; }
-                to { background-position-y: 200px; } 
-            }
+            @keyframes moveWallLeft { from { background-position-x: 0px; } to { background-position-x: -${TILE_WIDTH}; } }
+            @keyframes moveWallRight { from { background-position-x: 0px; } to { background-position-x: ${TILE_WIDTH}; } }
+            @keyframes moveRoad { from { background-position-y: 0px; } to { background-position-y: 200px; } }
             `}
         </style>
 
-        {/* ROAD (WIDE & HIGH) */}
+        {/* ROAD (140vw = Tight Street Width) */}
         <div style={{
             position: "absolute", top: "50%", left: "50%",
-            // 300vw WIDTH: Ensures the road extends past the bottom corners of the screen.
-            width: "300vw", 
+            width: "140vw", 
             height: "800vh",
             backgroundColor: "#222",
             
-            // 5-LANE MARKINGS (Centered)
-            // We use a gradient that focuses the lanes in the center 100vw
-            // leaving the outer edges as "sidewalk" or empty space.
+            // 5 LANES = 4 Lines
             backgroundImage: `
                 linear-gradient(to right, 
-                    transparent 30%, 
-                    rgba(255,255,255,0.4) 30%, rgba(255,255,255,0.4) 30.5%, transparent 30.5%,
-                    transparent 39.5%, rgba(255,255,255,0.4) 40%, rgba(255,255,255,0.4) 40.5%, transparent 40.5%,
-                    transparent 49.5%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0.4) 50.5%, transparent 50.5%,
-                    transparent 59.5%, rgba(255,255,255,0.4) 60%, rgba(255,255,255,0.4) 60.5%, transparent 60.5%,
-                    transparent 70%
+                    transparent 19%, rgba(255,255,255,0.3) 20%, transparent 21%,
+                    transparent 39%, rgba(255,255,255,0.3) 40%, transparent 41%,
+                    transparent 59%, rgba(255,255,255,0.3) 60%, transparent 61%,
+                    transparent 79%, rgba(255,255,255,0.3) 80%, transparent 81%
                 ),
-                repeating-linear-gradient(to bottom, #333 0, #333 20px, #222 20px, #222 40px)
+                repeating-linear-gradient(to bottom, #2a2a2a 0, #2a2a2a 20px, #222 20px, #222 40px)
             `,
             backgroundSize: "100% 100%, 100% 40px",
             
-            // TRANSFORM FIX:
-            // translateZ(10vh): Lifts the floor UP towards the camera.
-            // rotateX(90deg): Flattens it.
-            transform: "translate(-50%, -50%) rotateX(90deg) translateZ(10vh)",
+            // TILTED DOWNWARDS (Subway Surfers Curve)
+            // rotateX(95deg) pushes the far end of the road "down" into the floor
+            transform: "translate(-50%, -50%) rotateX(93deg) translateZ(-15vh)",
             
-            animation: `moveRoad ${isPlaying ? "0.2s" : "0s"} linear infinite`,
-            
-            // FOG MASK
-            maskImage: "linear-gradient(to bottom, black 0%, black 50%, transparent 95%)",
-            WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 50%, transparent 95%)"
+            animation: `moveRoad ${isPlaying ? "0.15s" : "0s"} linear infinite`,
         }} />
 
         {/* LEFT WALL */}
@@ -182,12 +151,13 @@ export default function FlyRunnerGame() {
         {/* RIGHT WALL */}
         <div style={getWallStyle(WALL_RIGHT_IMG, 'right')} />
 
-        {/* DISTANCE FOG */}
+        {/* --- SKY GRADIENT (Behind walls, fills the void) --- */}
         <div style={{
-            position: "absolute", inset: 0,
-            background: "radial-gradient(circle at 50% 25%, transparent 10%, #000 80%)",
-            zIndex: 10
+            position: "absolute", top: "0", left: "0", width: "100%", height: "100%",
+            background: "linear-gradient(to bottom, #87CEEB 0%, #E0F7FA 50%, transparent 100%)",
+            zIndex: -1
         }} />
+
       </div>
 
       {/* ========================================================
@@ -196,19 +166,20 @@ export default function FlyRunnerGame() {
       
       {/* SHIP */}
       <div style={{
-            position: "absolute", bottom: "10%", left: "50%",
-            // LANE MOVEMENT: Adjusted multiplier (30vw) to match the wider 300vw road.
-            transform: `translateX(-50%) translateX(${lane * 30}vw)`, 
-            transition: "transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275)", 
+            position: "absolute", bottom: "12%", left: "50%",
+            // MOVEMENT: 140vw total width / 5 lanes = ~22vw per lane step
+            transform: `translateX(-50%) translateX(${lane * 22}vw)`, 
+            transition: "transform 0.1s cubic-bezier(0.2, 0.8, 0.2, 1.2)", // Snappy slide
             zIndex: 50, pointerEvents: "none"
       }}>
-        {/* Glow */}
+        {/* Shadow */}
         <div style={{
-            position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-            width: "120px", height: "120px", background: "radial-gradient(circle, rgba(0,255,153,0.3) 0%, transparent 70%)"
+            position: "absolute", bottom: "-20px", left: "50%", transform: "translateX(-50%) scale(1, 0.3)",
+            width: "80px", height: "80px", background: "black", borderRadius: "50%", opacity: 0.5,
+            filter: "blur(10px)"
         }} />
-        
-        {/* Ship Model */}
+
+        {/* Ship Body */}
         <div style={{ 
             width: "0", height: "0", 
             borderLeft: "30px solid transparent", 
@@ -222,7 +193,7 @@ export default function FlyRunnerGame() {
       <div style={{ position: "relative", zIndex: 100, height: "100%", pointerEvents: "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", padding: "20px", color: "white", fontFamily: "monospace", textShadow: "2px 2px 0 #000" }}>
             <div>
-                <span style={{ background: isPlaying ? "red" : "gray", padding: "2px 6px", marginRight: "10px" }}>
+                <span style={{ background: isPlaying ? "red" : "gray", padding: "2px 6px", marginRight: "10px", borderRadius: "4px" }}>
                   {isPlaying ? "LIVE" : "PAUSED"}
                 </span> 
                 SCORE: {score.toString().padStart(5, '0')}
