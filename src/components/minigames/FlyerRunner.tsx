@@ -7,7 +7,7 @@ import Link from "next/link";
 const WALL_LEFT_IMG = "/texture_leeds_left_v3.png";
 const WALL_RIGHT_IMG = "/texture_leeds_right_v3.png";
 
-// CRITICAL: Matches your 2912px image width
+// CRITICAL: Matches your 2912px image width exactly
 const TILE_WIDTH = "2912px"; 
 
 export default function FlyRunnerGame() {
@@ -70,14 +70,14 @@ export default function FlyRunnerGame() {
       top: "50%", 
       left: "50%",
       
-      // CONTAINER: Huge height to catch roofs
+      // CONTAINER: Massive height to ensure roofs are never clipped
       width: "1000vw", 
       height: "400vh", 
       
       backgroundImage: `url('${img}')`,
-      backgroundSize: `${TILE_WIDTH} auto`, // Fixed width, auto height
+      backgroundSize: `${TILE_WIDTH} auto`, 
       backgroundRepeat: "repeat-x",
-      backgroundPosition: "left bottom", // Anchors image to the bottom of the div
+      backgroundPosition: "left bottom", // Anchors image to the bottom (road level)
 
       willChange: "background-position", 
       animation: side === 'left' 
@@ -85,13 +85,12 @@ export default function FlyRunnerGame() {
         : `moveWallRight ${animationDuration} linear infinite`,
 
       // TRANSFORM (ALIGNMENT FIX):
-      // 1. translateY(-60%): Lifts the container up. 
-      //    Since image is bottom-aligned, this brings the "pavement" up to meet the road.
-      // 2. translateZ(-50vw): Brings walls horizontally closer for the "tight street" feel.
+      // 1. translateY(-50%): Centers the wall vertically roughly around the horizon.
+      // 2. translateZ(-65vw): Pushes walls out to the side to match the wider road.
       transform: `
-        translate(-50%, -60%) 
+        translate(-50%, -50%) 
         rotateY(${side === 'left' ? '90deg' : '-90deg'}) 
-        translateZ(-50vw)
+        translateZ(-65vw)
       `,
       
       backfaceVisibility: "hidden",
@@ -114,12 +113,12 @@ export default function FlyRunnerGame() {
          ======================================================== */}
       <div style={{
           position: "absolute", inset: 0,
-          perspective: "350px", 
+          perspective: "300px", 
           
-          // CRITICAL FIX: CAMERA HEIGHT
-          // By moving the origin UP to 30%, we simulate the eye level moving DOWN.
-          // This makes the floor plane rise to meet the viewer.
-          perspectiveOrigin: "50% 30%",
+          // CRITICAL FIX: HIGH HORIZON
+          // 25% moves the vanishing point UP. This makes the floor take up 
+          // the bottom 75% of the screen, solving the "floor too low" issue.
+          perspectiveOrigin: "50% 25%",
           
           overflow: "hidden",
           pointerEvents: "none"
@@ -141,29 +140,34 @@ export default function FlyRunnerGame() {
             `}
         </style>
 
-        {/* ROAD (5 LANES) */}
+        {/* ROAD (WIDE & HIGH) */}
         <div style={{
             position: "absolute", top: "50%", left: "50%",
-            width: "100vw", // Matches street width (50vw left + 50vw right)
+            // 300vw WIDTH: Ensures the road extends past the bottom corners of the screen.
+            width: "300vw", 
             height: "800vh",
             backgroundColor: "#222",
             
-            // 5-LANE MARKINGS
-            // Creates 4 dashed lines to divide the 100vw into 5 sections
+            // 5-LANE MARKINGS (Centered)
+            // We use a gradient that focuses the lanes in the center 100vw
+            // leaving the outer edges as "sidewalk" or empty space.
             backgroundImage: `
                 linear-gradient(to right, 
-                    transparent 19%, rgba(255,255,255,0.4) 20%, transparent 21%,
-                    transparent 39%, rgba(255,255,255,0.4) 40%, transparent 41%,
-                    transparent 59%, rgba(255,255,255,0.4) 60%, transparent 61%,
-                    transparent 79%, rgba(255,255,255,0.4) 80%, transparent 81%
+                    transparent 30%, 
+                    rgba(255,255,255,0.4) 30%, rgba(255,255,255,0.4) 30.5%, transparent 30.5%,
+                    transparent 39.5%, rgba(255,255,255,0.4) 40%, rgba(255,255,255,0.4) 40.5%, transparent 40.5%,
+                    transparent 49.5%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0.4) 50.5%, transparent 50.5%,
+                    transparent 59.5%, rgba(255,255,255,0.4) 60%, rgba(255,255,255,0.4) 60.5%, transparent 60.5%,
+                    transparent 70%
                 ),
                 repeating-linear-gradient(to bottom, #333 0, #333 20px, #222 20px, #222 40px)
             `,
             backgroundSize: "100% 100%, 100% 40px",
             
             // TRANSFORM FIX:
-            // translateZ(-5vh): Raises the road almost to center (0), removing the "floating" feeling.
-            transform: "translate(-50%, -50%) rotateX(90deg) translateZ(-5vh)",
+            // translateZ(10vh): Lifts the floor UP towards the camera.
+            // rotateX(90deg): Flattens it.
+            transform: "translate(-50%, -50%) rotateX(90deg) translateZ(10vh)",
             
             animation: `moveRoad ${isPlaying ? "0.2s" : "0s"} linear infinite`,
             
@@ -181,7 +185,7 @@ export default function FlyRunnerGame() {
         {/* DISTANCE FOG */}
         <div style={{
             position: "absolute", inset: 0,
-            background: "radial-gradient(circle at center, transparent 10%, #000 90%)",
+            background: "radial-gradient(circle at 50% 25%, transparent 10%, #000 80%)",
             zIndex: 10
         }} />
       </div>
@@ -193,9 +197,8 @@ export default function FlyRunnerGame() {
       {/* SHIP */}
       <div style={{
             position: "absolute", bottom: "10%", left: "50%",
-            // MOVEMENT: 20vw per lane step (100vw / 5 lanes = 20vw)
-            // This aligns the ship perfectly with the drawn lines.
-            transform: `translateX(-50%) translateX(${lane * 20}vw)`, 
+            // LANE MOVEMENT: Adjusted multiplier (30vw) to match the wider 300vw road.
+            transform: `translateX(-50%) translateX(${lane * 30}vw)`, 
             transition: "transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275)", 
             zIndex: 50, pointerEvents: "none"
       }}>
