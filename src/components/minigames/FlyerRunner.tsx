@@ -7,10 +7,9 @@ import Link from "next/link";
 const WALL_LEFT_IMG = "/texture_leeds_left_v3.png";
 const WALL_RIGHT_IMG = "/texture_leeds_right_v3.png";
 
-// SCALING FIX: 
-// Original image is 2912px.
-// We force it to display at 728px (25% scale).
-// This creates "smaller" buildings, revealing more of the wall structure.
+// SCALING: 
+// 728px width (Small/Crisp buildings). 
+// This reveals more wall tiles on screen as requested.
 const TILE_WIDTH = "728px"; 
 
 export default function FlyRunnerGame() {
@@ -64,29 +63,21 @@ export default function FlyRunnerGame() {
       return {
         position: "absolute", 
         
-        // ALIGNMENT (The "Shops on Pavement" lock):
-        // Top: 50% places the top edge of the div at the screen center.
-        // We will transform it UP by 100% of its height so its BOTTOM sits at 50%.
-        top: "50%",
-        left: "50%",
+        // ALIGNMENT (The "Safe Patch" Logic):
+        // Anchoring 'bottom' to '50%' aligns the shop floor with the road.
+        bottom: "50%",
         
-        // INFINITY FIX:
-        // 50,000px width. Since we rotate 90deg, this becomes DEPTH.
-        // This is physically long enough to go past the vanishing point.
+        // DIMENSIONS:
+        // 50,000px guarantees it loops past the vanishing point.
         width: "50000px", 
-        height: "500px", // Fixed height for the building strip (prevents stretching)
+        height: "500px", // Fixed height for proper scaling
         
         backgroundImage: `url('${img}')`,
         imageRendering: "pixelated",
         
-        // SCALING FIX (The "Too Large" Fix):
-        // Width: 728px (Small crisp buildings).
-        // Height: 100% (Fills the 500px container).
+        // SCALING:
         backgroundSize: `${TILE_WIDTH} 100%`, 
         backgroundRepeat: "repeat-x",
-        
-        // ALIGNMENT:
-        // Anchors texture to bottom-left.
         backgroundPosition: "left bottom", 
 
         willChange: "background-position", 
@@ -94,17 +85,29 @@ export default function FlyRunnerGame() {
             ? `moveWallLeft ${animationDuration} linear infinite`
             : `moveWallRight ${animationDuration} linear infinite`,
 
-        // HINGE ARCHITECTURE:
-        // 1. Move to road edge (30vw).
-        // 2. Set Hinge Point (transformOrigin) to that edge.
-        marginLeft: isLeft ? "-30vw" : "30vw", 
-        transformOrigin: isLeft ? "right bottom" : "left bottom",
+        // --- THE GEOMETRY FIX ---
         
-        transform: isLeft
-            // Left Wall: Shift up 100% (so bottom touches road), Rotate 90deg
-            ? `translateY(-100%) rotateY(90deg)` 
-            // Right Wall: Shift up 100% (so bottom touches road), Rotate -90deg
-            : `translateY(-100%) rotateY(-90deg)`,
+        // LEFT WALL:
+        // 1. Position: Start at the center (right: 50%).
+        // 2. Margin: Push it LEFT by 30vw (Road edge).
+        // 3. Hinge: Pivot on the RIGHT bottom corner (The corner touching the road).
+        // 4. Rotate: -90deg. This swings the 50,000px tail away from the camera into -Z.
+        ...(isLeft ? {
+            right: "50%",
+            marginRight: "30vw",
+            transformOrigin: "right bottom",
+            transform: "rotateY(-90deg)"
+        } : {
+        // RIGHT WALL:
+        // 1. Position: Start at the center (left: 50%).
+        // 2. Margin: Push it RIGHT by 30vw (Road edge).
+        // 3. Hinge: Pivot on the LEFT bottom corner (The corner touching the road).
+        // 4. Rotate: 90deg. This swings the 50,000px tail away from the camera into -Z.
+            left: "50%",
+            marginLeft: "30vw",
+            transformOrigin: "left bottom",
+            transform: "rotateY(90deg)"
+        }),
 
         backfaceVisibility: "visible", 
         filter: "brightness(0.95)"
@@ -128,7 +131,7 @@ export default function FlyRunnerGame() {
       <div style={{
           position: "absolute", inset: 0,
           perspective: "300px", 
-          perspectiveOrigin: "50% 25%", // Camera Height
+          perspectiveOrigin: "50% 25%", // Safe Patch Camera Height
           overflow: "hidden",
           pointerEvents: "none",
       }}>
@@ -144,7 +147,7 @@ export default function FlyRunnerGame() {
         <div style={{
             position: "absolute", inset: 0,
             transformStyle: "preserve-3d",
-            transform: "rotateX(10deg)" // Horizon Curve
+            transform: "rotateX(10deg)" // Safe Patch Curve
         }}>
 
             {/* ROAD */}
