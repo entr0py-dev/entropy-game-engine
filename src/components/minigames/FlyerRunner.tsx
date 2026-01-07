@@ -15,12 +15,12 @@ export default function FlyRunnerGame() {
   
   const mainRef = useRef<HTMLElement>(null);
 
-  // SPEED CURVE (Logarithmic - Treatise Section 5.1)
+  // SPEED CURVE
   const calculateSpeed = () => {
     if (!isPlaying) return "0s";
-    const maxSpeed = 1.0; 
-    const minSpeed = 3.5;
-    const decay = Math.min(1, score / 6000); 
+    const maxSpeed = 0.8; 
+    const minSpeed = 3.0;
+    const decay = Math.min(1, score / 8000); 
     const current = minSpeed - (decay * (minSpeed - maxSpeed));
     return `${current}s`;
   };
@@ -53,35 +53,35 @@ export default function FlyRunnerGame() {
     return () => clearInterval(interval);
   }, [isPlaying]);
 
-  // --- 3D TRANSFORM GENERATOR ---
+  // --- WALL STYLE GENERATOR ---
   const getWallStyle = (img: string, side: 'left' | 'right'): React.CSSProperties => ({
       position: "absolute", top: "50%", left: "50%",
       
-      // CONTAINER: 400vh Height prevents top clipping
-      width: "800vw", height: "400vh", 
+      width: "800vw", 
+      height: "500vh", 
       
       backgroundImage: `url('${img}')`,
       backgroundSize: `${TILE_WIDTH} auto`, 
       backgroundRepeat: "repeat-x",
-      backgroundPosition: "left bottom", // Anchor to street level
+      backgroundPosition: "left bottom", 
+      imageRendering: "pixelated", // Enforce crisp pixels
 
       willChange: "background-position", 
       animation: side === 'left' 
         ? `moveWallLeft ${animationDuration} linear infinite`
         : `moveWallRight ${animationDuration} linear infinite`,
 
-      // STREET ALIGNMENT TRANSFORM:
-      // translateY(-50%): Centers the wall vertically. 
-      //    Since the road is also centered, the "bottom" of the wall sits on the road.
-      // translateZ(-40vw): PULLS WALLS IN TIGHT. This makes it feel like a real street.
+      // ALIGNMENT FIX:
+      // translateY(-60%): Lifts the walls UP to match the new higher road.
+      // translateZ(-50vw): Keeps the street tight.
       transform: `
-        translate(-50%, -50%) 
+        translate(-50%, -60%) 
         rotateY(${side === 'left' ? '90deg' : '-90deg'}) 
-        translateZ(-40vw) 
+        translateZ(-50vw) 
       `,
       
       backfaceVisibility: "hidden",
-      filter: "brightness(0.85)" 
+      filter: "brightness(0.9)" 
   });
 
   return (
@@ -92,24 +92,27 @@ export default function FlyRunnerGame() {
         style={{ 
             width: "100vw", height: "100vh", position: "relative", 
             overflow: "hidden", outline: "none", userSelect: "none",
-            background: "black" 
+            background: "#87CEEB"
         }}
     >
       {/* ========================================================
-          THE CURVED WORLD ENGINE
+          VISUAL ENGINE
          ======================================================== */}
       <div style={{
           position: "absolute", inset: 0,
-          perspective: "250px", // Aggressive perspective for speed feel
-          perspectiveOrigin: "50% 40%", // Lowers camera slightly to look "forward" down the street
+          perspective: "300px", 
+          
+          // HORIZON LIFT:
+          // Moving origin UP to 25% raises the horizon line.
+          // This makes the floor start much higher on the screen.
+          perspectiveOrigin: "50% 25%", 
+          
           overflow: "hidden",
           pointerEvents: "none",
 
-          // --- THE CURVED HORIZON TRICK ---
-          // Instead of a linear fade, we use a RADIAL mask at the top-center.
-          // This creates a curved "terminator" line where the world drops away.
-          maskImage: "radial-gradient(circle at 50% 40%, black 20%, transparent 80%)",
-          WebkitMaskImage: "radial-gradient(circle at 50% 40%, black 20%, transparent 80%)"
+          // CURVE MASK
+          maskImage: "linear-gradient(to bottom, black 0%, black 60%, transparent 85%)",
+          WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 60%, transparent 85%)"
       }}>
         <style>
             {`
@@ -119,14 +122,14 @@ export default function FlyRunnerGame() {
             `}
         </style>
 
-        {/* ROAD (140vw = Tight Street Width) */}
+        {/* ROAD */}
         <div style={{
             position: "absolute", top: "50%", left: "50%",
-            width: "140vw", 
+            width: "100vw", 
             height: "800vh",
             backgroundColor: "#222",
             
-            // 5 LANES = 4 Lines
+            // 5 LANE MARKERS
             backgroundImage: `
                 linear-gradient(to right, 
                     transparent 19%, rgba(255,255,255,0.3) 20%, transparent 21%,
@@ -138,25 +141,17 @@ export default function FlyRunnerGame() {
             `,
             backgroundSize: "100% 100%, 100% 40px",
             
-            // TILTED DOWNWARDS (Subway Surfers Curve)
-            // rotateX(95deg) pushes the far end of the road "down" into the floor
-            transform: "translate(-50%, -50%) rotateX(93deg) translateZ(-15vh)",
+            // FLOOR LIFT:
+            // translateZ(30vh): This physically pushes the floor UP towards the camera.
+            // Combined with perspective-origin: 25%, the floor will now dominate the bottom half.
+            transform: "translate(-50%, -50%) rotateX(90deg) translateZ(30vh)",
             
-            animation: `moveRoad ${isPlaying ? "0.15s" : "0s"} linear infinite`,
+            animation: `moveRoad ${isPlaying ? "0.2s" : "0s"} linear infinite`,
         }} />
 
-        {/* LEFT WALL */}
+        {/* WALLS */}
         <div style={getWallStyle(WALL_LEFT_IMG, 'left')} />
-
-        {/* RIGHT WALL */}
         <div style={getWallStyle(WALL_RIGHT_IMG, 'right')} />
-
-        {/* --- SKY GRADIENT (Behind walls, fills the void) --- */}
-        <div style={{
-            position: "absolute", top: "0", left: "0", width: "100%", height: "100%",
-            background: "linear-gradient(to bottom, #87CEEB 0%, #E0F7FA 50%, transparent 100%)",
-            zIndex: -1
-        }} />
 
       </div>
 
@@ -166,16 +161,15 @@ export default function FlyRunnerGame() {
       
       {/* SHIP */}
       <div style={{
-            position: "absolute", bottom: "12%", left: "50%",
-            // MOVEMENT: 140vw total width / 5 lanes = ~22vw per lane step
-            transform: `translateX(-50%) translateX(${lane * 22}vw)`, 
-            transition: "transform 0.1s cubic-bezier(0.2, 0.8, 0.2, 1.2)", // Snappy slide
+            position: "absolute", bottom: "15%", left: "50%",
+            transform: `translateX(-50%) translateX(${lane * 20}vw)`, 
+            transition: "transform 0.1s cubic-bezier(0.2, 0.8, 0.2, 1.2)",
             zIndex: 50, pointerEvents: "none"
       }}>
         {/* Shadow */}
         <div style={{
-            position: "absolute", bottom: "-20px", left: "50%", transform: "translateX(-50%) scale(1, 0.3)",
-            width: "80px", height: "80px", background: "black", borderRadius: "50%", opacity: 0.5,
+            position: "absolute", bottom: "-25px", left: "50%", transform: "translateX(-50%) scale(1, 0.3)",
+            width: "80px", height: "80px", background: "black", borderRadius: "50%", opacity: 0.6,
             filter: "blur(10px)"
         }} />
 
@@ -191,7 +185,7 @@ export default function FlyRunnerGame() {
 
       {/* HUD */}
       <div style={{ position: "relative", zIndex: 100, height: "100%", pointerEvents: "none" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", padding: "20px", color: "white", fontFamily: "monospace", textShadow: "2px 2px 0 #000" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "20px", color: "white", fontFamily: "monospace", textShadow: "1px 1px 2px #000" }}>
             <div>
                 <span style={{ background: isPlaying ? "red" : "gray", padding: "2px 6px", marginRight: "10px", borderRadius: "4px" }}>
                   {isPlaying ? "LIVE" : "PAUSED"}
