@@ -60,20 +60,20 @@ export default function FlyRunnerGame() {
       return {
         position: "absolute", 
         top: "50%",
+        left: "50%",
         
-        // ANCHOR TO ROAD EDGE:
-        // Road is 60vw wide, centered at 50%. So its edges are at 20% and 80%.
-        // Left wall is anchored to the road's left edge (20% from left, or 30vw from center).
-        // Right wall is anchored to the road's right edge (80% from left, or 30vw from center).
-        [isLeft ? 'right' : 'left']: "30vw",
-
         // DIMENSIONS:
-        height: "200vh", 
-        width: "1000vw", // Deep tunnel
+        // Height: 250vh (Vertical coverage)
+        // Width: 1000vw (Depth of tunnel)
+        height: "250vh", 
+        width: "1000vw", 
         
         backgroundImage: `url('${img}')`,
         imageRendering: "pixelated",
         
+        // TEXTURE FIX: 
+        // We force the width to TILE_WIDTH (2912px).
+        // This prevents the "Giant Blurry Pixel" issue by ignoring the container width.
         backgroundSize: `${TILE_WIDTH} 100%`, 
         backgroundRepeat: "repeat-x",
         backgroundPosition: "left bottom", 
@@ -83,19 +83,24 @@ export default function FlyRunnerGame() {
             ? `moveWallLeft ${animationDuration} linear infinite`
             : `moveWallRight ${animationDuration} linear infinite`,
 
-        // GEOMETRY FIX (Edge Anchor):
-        // 1. translateY(-50%): Center vertically.
-        // 2. rotateY(90deg): Rotate to form a wall.
-        transform: isLeft
-            ? `translateY(-50%) rotateY(90deg)`  // Left Wall
-            : `translateY(-50%) rotateY(-90deg)`, // Right Wall
-
-        // PIVOT POINT:
-        // Pivot from the edge touching the road.
+        // PLACEMENT FIX (The Hinge Method):
+        // 1. We position the DIV so it starts exactly at the road edge (+/- 30vw).
+        // 2. We set the pivot point (transformOrigin) to that edge.
+        // 3. We rotate 90 degrees back.
+        
+        // Left Wall: Positioned left of center (-30vw). Hinged on its RIGHT edge.
+        // Right Wall: Positioned right of center (+30vw). Hinged on its LEFT edge.
+        marginLeft: isLeft ? "-30vw" : "30vw", 
         transformOrigin: isLeft ? "right center" : "left center",
         
+        transform: isLeft
+            // Move -100% (its own width) to the left so its right edge touches the road
+            ? `translate(-100%, -50%) rotateY(90deg)` 
+            // Right wall starts at the road edge, so no X-translation needed
+            : `translate(0%, -50%) rotateY(-90deg)`, 
+
         backfaceVisibility: "visible", 
-        filter: "brightness(0.9)"
+        filter: "brightness(0.95)"
       };
   };
 
@@ -115,8 +120,9 @@ export default function FlyRunnerGame() {
          ======================================================== */}
       <div style={{
           position: "absolute", inset: 0,
-          perspective: "350px", 
-          perspectiveOrigin: "50% 40%", // Camera Height
+          perspective: "300px", 
+          // HIGH CAMERA: 20% height looks down at the road, emphasizing the curve.
+          perspectiveOrigin: "50% 20%", 
           overflow: "hidden",
           pointerEvents: "none",
       }}>
@@ -128,19 +134,19 @@ export default function FlyRunnerGame() {
             `}
         </style>
 
-        {/* WORLD WRAPPER (Tilt Mechanic) */}
+        {/* WORLD WRAPPER (The Curve Mechanic) */}
         <div style={{
             position: "absolute", inset: 0,
             transformStyle: "preserve-3d",
-            // INCREASED CURVATURE: Changed from 5deg to 10deg for a more dramatic drop.
-            transform: "rotateX(10deg)" 
+            // THE CURVE: 15deg tilt drops the horizon significantly.
+            transform: "rotateX(15deg)" 
         }}>
 
             {/* ROAD */}
             <div style={{
                 position: "absolute", top: "50%", left: "50%",
                 
-                // WIDTH: 60vw
+                // ROAD WIDTH: 60vw
                 width: "60vw", 
                 
                 height: "800vh",
@@ -149,10 +155,10 @@ export default function FlyRunnerGame() {
                 // 5 LANES
                 backgroundImage: `
                     linear-gradient(to right, 
-                        transparent 19%, rgba(255,255,255,0.4) 20%, transparent 21%,
-                        transparent 39%, rgba(255,255,255,0.4) 40%, transparent 41%,
-                        transparent 59%, rgba(255,255,255,0.4) 60%, transparent 61%,
-                        transparent 79%, rgba(255,255,255,0.4) 80%, transparent 81%
+                        transparent 19%, rgba(255,255,255,0.5) 20%, transparent 21%,
+                        transparent 39%, rgba(255,255,255,0.5) 40%, transparent 41%,
+                        transparent 59%, rgba(255,255,255,0.5) 60%, transparent 61%,
+                        transparent 79%, rgba(255,255,255,0.5) 80%, transparent 81%
                     ),
                     repeating-linear-gradient(to bottom, #2a2a2a 0, #2a2a2a 20px, #222 20px, #222 40px)
                 `,
@@ -171,8 +177,6 @@ export default function FlyRunnerGame() {
 
         </div>
 
-        {/* FOG REMOVED: The horizon mask is gone for a clear foreground. */}
-
       </div>
 
       {/* ========================================================
@@ -183,17 +187,19 @@ export default function FlyRunnerGame() {
       <div style={{
             position: "absolute", bottom: "10%", left: "50%",
             // MOVEMENT CALC:
-            // Road is 60vw wide.
-            // 5 lanes = 12vw per lane.
+            // Road is 60vw wide. 5 lanes.
+            // 60 / 5 = 12vw per lane.
             transform: `translateX(-50%) translateX(${lane * 12}vw)`, 
             transition: "transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
             zIndex: 50, pointerEvents: "none"
       }}>
+        {/* Shadow */}
         <div style={{
             position: "absolute", bottom: "-20px", left: "50%", transform: "translateX(-50%) scale(1, 0.3)",
             width: "80px", height: "80px", background: "black", borderRadius: "50%", opacity: 0.5,
             filter: "blur(8px)"
         }} />
+        {/* Ship Body */}
         <div style={{ 
             width: "0", height: "0", 
             borderLeft: "30px solid transparent", 
