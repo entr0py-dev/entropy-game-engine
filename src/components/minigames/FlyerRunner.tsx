@@ -15,6 +15,7 @@ export default function FlyRunnerGame() {
   
   const mainRef = useRef<HTMLElement>(null);
 
+  // SPEED CURVE
   const calculateSpeed = () => {
     if (!isPlaying) return "0s";
     const maxSpeed = 0.8; 
@@ -55,23 +56,29 @@ export default function FlyRunnerGame() {
   // --- WALL STYLE GENERATOR ---
   const getWallStyle = (img: string, side: 'left' | 'right'): React.CSSProperties => {
       const isLeft = side === 'left';
+      
       return {
         position: "absolute", 
-        // VERTICAL ANCHOR: Bottom of the wall sits at the vertical center of the screen (Horizon)
-        bottom: "50%", 
+        // Vertical Alignment: Center of screen
+        top: "50%",
         
-        // HORIZONTAL ANCHOR:
-        // Left wall starts at the left edge of the road (-50vw from center)
-        // Right wall starts at the right edge of the road (+50vw from center)
+        // HINGE LOGIC:
+        // We place the div exactly at the center of the screen (left: 50%).
+        // We will then pivot it so it extends deep into the background.
         left: "50%",
         
-        // SIZE
-        width: "1000vw", // Long enough to fade into distance
-        height: "500vh", // Tall enough to never clip top
+        // DIMENSIONS:
+        // Height: Tall enough to cover vertical view.
+        // Width: This becomes the DEPTH of the tunnel because we rotate it 90deg.
+        height: "200vh", 
+        width: "500vw", // Deep tunnel
         
         backgroundImage: `url('${img}')`,
         imageRendering: "pixelated",
-        backgroundSize: `${TILE_WIDTH} auto`, 
+        
+        // TEXTURE MAPPING:
+        // Height 100% ensures the building fits vertically.
+        backgroundSize: `${TILE_WIDTH} 100%`, 
         backgroundRepeat: "repeat-x",
         backgroundPosition: "left bottom", 
 
@@ -80,18 +87,19 @@ export default function FlyRunnerGame() {
             ? `moveWallLeft ${animationDuration} linear infinite`
             : `moveWallRight ${animationDuration} linear infinite`,
 
-        // TRANSFORM ORIGIN (The Hinge)
-        // We hinge the walls on the bottom-center.
-        transformOrigin: "left bottom",
-
-        // ROTATION
-        // 1. Move it to the correct side of the road (margin-left)
-        // 2. Rotate it 90deg to face the road.
+        // THE GEOMETRY FIX:
+        // 1. Move the wall from the center (50%) to the edge of the road (30vw).
+        // 2. Rotate it 90 degrees to form a wall.
         transform: isLeft
-            ? `translateX(-50vw) rotateY(90deg)` // Move Left, Face Right
-            : `translateX(50vw) rotateY(-90deg)`, // Move Right, Face Left
+            ? `translateX(-30vw) translateY(-50%) rotateY(90deg)`  // Left Wall
+            : `translateX(30vw) translateY(-50%) rotateY(-90deg)`, // Right Wall
+
+        // ROTATION PIVOT:
+        // We pivot around the edge closest to the camera/center to prevent it swinging wildly.
+        transformOrigin: isLeft ? "left center" : "right center",
         
-        backfaceVisibility: "hidden",
+        // Ensure it renders even if rotated "backwards"
+        backfaceVisibility: "visible", 
         filter: "brightness(0.9)"
       };
   };
@@ -113,7 +121,7 @@ export default function FlyRunnerGame() {
       <div style={{
           position: "absolute", inset: 0,
           perspective: "350px", 
-          perspectiveOrigin: "50% 35%", // High Horizon (Keep Floor Visible)
+          perspectiveOrigin: "50% 35%", // High Horizon (Maintains your preferred floor height)
           overflow: "hidden",
           pointerEvents: "none",
       }}>
@@ -129,13 +137,17 @@ export default function FlyRunnerGame() {
         <div style={{
             position: "absolute", inset: 0,
             transformStyle: "preserve-3d",
-            transform: "rotateX(5deg)" // The "Subway Surfers" Curve
+            transform: "rotateX(5deg)" // Subtle curve down
         }}>
 
-            {/* ROAD */}
+            {/* ROAD (NARROWED) */}
             <div style={{
                 position: "absolute", top: "50%", left: "50%",
-                width: "100vw", 
+                
+                // WIDTH FIX: Reduced from 100vw to 60vw. 
+                // This makes the street narrower so it doesn't clip off the sides.
+                width: "60vw", 
+                
                 height: "800vh",
                 backgroundColor: "#222",
                 
@@ -180,7 +192,10 @@ export default function FlyRunnerGame() {
       {/* SHIP */}
       <div style={{
             position: "absolute", bottom: "10%", left: "50%",
-            transform: `translateX(-50%) translateX(${lane * 20}vw)`, 
+            // MOVEMENT CALC:
+            // Road is 60vw wide.
+            // 5 lanes = 12vw per lane.
+            transform: `translateX(-50%) translateX(${lane * 12}vw)`, 
             transition: "transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
             zIndex: 50, pointerEvents: "none"
       }}>
