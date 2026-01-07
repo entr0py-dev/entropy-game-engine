@@ -4,12 +4,10 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 
 // --- CONFIGURATION ---
-// IMPORTANT: This number MUST match the exact pixel width of your image file.
-// If your image is 2048px wide, change this to "2048px".
-const TILE_WIDTH = "3072px"; 
-
 const WALL_LEFT_IMG = "/texture_leeds_left_v3.png";
 const WALL_RIGHT_IMG = "/texture_leeds_right_v3.png";
+// Ensure this matches your image width exactly to prevent skipping
+const TILE_WIDTH = "3072px"; 
 
 export default function FlyRunnerGame() {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -19,9 +17,8 @@ export default function FlyRunnerGame() {
   const mainRef = useRef<HTMLElement>(null);
   const SHIP_SPEED = 10;
   
-  // Slower duration (2s) = Smoother rendering. 
-  // Fast movement (1s) on huge textures often causes frame drops.
-  const animationDuration = isPlaying ? "2.0s" : "0s";
+  // Slower loop (3s) helps smooth out the "skip" on high-res textures
+  const animationDuration = isPlaying ? "3.0s" : "0s";
 
   // --- GAME START ---
   const startGame = () => {
@@ -57,42 +54,52 @@ export default function FlyRunnerGame() {
     return () => clearInterval(interval);
   }, [isPlaying]);
 
-  // --- WALL STYLE GENERATOR ---
+  // --- WALL STYLE ---
   const getWallStyle = (img: string, side: 'left' | 'right'): React.CSSProperties => ({
       position: "absolute", 
       top: "50%", 
       left: "50%",
       
-      // SIZE: Massive container to prevent clipping
+      // CONTAINER SIZE: 
+      // 800vw = Wide enough to buffer the repeat
+      // 150vh = Tall enough to hold the roofs without clipping, but not 800vh (which causes lag)
       width: "800vw", 
-      height: "800vh", 
+      height: "150vh", 
       
       backgroundImage: `url('${img}')`,
       
-      // TEXTURE: Force height to 100% of container (800vh) to ensure full building visibility
-      backgroundSize: `${TILE_WIDTH} 100%`, 
+      // TEXTURE SIZING (The Fix for Stretching):
+      // WIDTH = Fixed to TILE_WIDTH (3072px)
+      // HEIGHT = 'auto'. This forces the browser to maintain the image's original aspect ratio.
+      backgroundSize: `${TILE_WIDTH} auto`, 
+      
       backgroundRepeat: "repeat-x",
-      backgroundPosition: "left center", // Center vertically
+      
+      // ALIGNMENT: 
+      // Align image to the BOTTOM of the container. 
+      // We will then lift the container so the bottom sits on the road.
+      backgroundPosition: "left bottom", 
 
       // ANIMATION
-      willChange: "background-position", // Force GPU acceleration for smoothness
+      willChange: "background-position", 
       animation: side === 'left' 
         ? `moveWallLeft ${animationDuration} linear infinite`
         : `moveWallRight ${animationDuration} linear infinite`,
 
-      // TRANSFORM
-      // translateZ(-100vw): Distance from camera
-      // rotateY: Angle for the tunnel effect
-      transform: `translate(-50%, -50%) rotateY(${side === 'left' ? '90deg' : '-90deg'}) translateZ(-100vw)`,
+      // TRANSFORM:
+      // rotateY: Creates the corridor angle
+      // translateZ(-100vw): Distance from center
+      // translateY(-85%): This lifts the container up. 
+      // Since background is aligned 'bottom', this places the "shop floor" near the road 
+      // while the "roof" extends upwards into the 150vh space.
+      transform: `translate(-50%, -85%) rotateY(${side === 'left' ? '90deg' : '-90deg'}) translateZ(-100vw)`,
       
       backfaceVisibility: "hidden",
       filter: "brightness(0.9)",
 
-      // FOG MASK: This fades the far end of the wall to transparent
-      // The mask makes the "left" and "right" edges of this massive div invisible,
-      // effectively blending the horizon perfectly.
-      maskImage: "linear-gradient(to right, transparent 0%, black 20%, black 80%, transparent 100%)",
-      WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 20%, black 80%, transparent 100%)"
+      // FOG MASK (Soft fade at ends)
+      maskImage: "linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%)",
+      WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%)"
   });
 
   return (
@@ -142,9 +149,9 @@ export default function FlyRunnerGame() {
             transform: "translate(-50%, -50%) rotateX(90deg) translateZ(-30vh)",
             animation: `moveRoad ${isPlaying ? "0.2s" : "0s"} linear infinite`,
             
-            // Road Fog Mask
-            maskImage: "linear-gradient(to bottom, black 0%, black 60%, transparent 100%)",
-            WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 60%, transparent 100%)"
+            // Fade road into distance
+            maskImage: "linear-gradient(to bottom, black 0%, black 70%, transparent 100%)",
+            WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 70%, transparent 100%)"
         }} />
 
         {/* LEFT WALL */}
@@ -156,10 +163,10 @@ export default function FlyRunnerGame() {
         {/* CENTER BLACK HOLE (Hides the exact vanishing point) */}
         <div style={{
             position: "absolute", top: "50%", left: "50%",
-            width: "100px", height: "100px",
+            width: "150px", height: "150px",
             background: "black",
             transform: "translate(-50%, -50%)",
-            boxShadow: "0 0 50px 50px black", // Soft edges
+            boxShadow: "0 0 80px 80px black", // Increased softness
             zIndex: 5
         }} />
 
