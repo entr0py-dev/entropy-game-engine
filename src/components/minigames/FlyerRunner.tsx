@@ -4,29 +4,26 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 
 // --- ASSET CONFIGURATION ---
-// Make sure these match your filenames in /public/ exactly
 const WALL_LEFT_IMG = "/texture_leeds_left_v3.png";
 const WALL_RIGHT_IMG = "/texture_leeds_right_v3.png";
-const TILE_SIZE = "3072px"; // The width of your texture file
+const TILE_SIZE = "3072px"; 
 
-export default function FlyRunnerPage() {
+export default function FlyRunnerGame() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [score, setScore] = useState(0);
   const [shipPosition, setShipPosition] = useState(0);
   
-  // Focus management
   const mainRef = useRef<HTMLElement>(null);
   const SHIP_SPEED = 10;
   
-  // Game Loop Speed (1.0s = Medium Fast)
+  // Game Loop Speed
   const animationDuration = isPlaying ? "1.0s" : "0s";
 
-  // --- GAME START LOGIC ---
+  // --- GAME START ---
   const startGame = () => {
     if (!isPlaying) {
       console.log("🚀 STARTING ENGINE...");
       setIsPlaying(true);
-      // Force focus to capture keys
       setTimeout(() => mainRef.current?.focus(), 10);
     }
   };
@@ -51,7 +48,7 @@ export default function FlyRunnerPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isPlaying]);
 
-  // --- SCORE TIMER ---
+  // --- SCORE ---
   useEffect(() => {
     if (!isPlaying) return;
     const interval = setInterval(() => setScore(prev => prev + 10), 100);
@@ -62,7 +59,7 @@ export default function FlyRunnerPage() {
     <main 
         ref={mainRef}
         tabIndex={0} 
-        onClick={startGame} // Clicking anywhere attempts to start
+        onClick={startGame} 
         style={{ 
             width: "100vw", height: "100vh", position: "relative", 
             overflow: "hidden", background: "#111", outline: "none",
@@ -70,13 +67,14 @@ export default function FlyRunnerPage() {
         }}
     >
       {/* ========================================================
-          THE VISUAL ENGINE (CSS 2.5D)
+          VISUAL ENGINE
          ======================================================== */}
       <div style={{
           position: "absolute", inset: 0,
-          perspective: "350px", // Controls how "deep" the tunnel feels
+          // FIX 1: Increased perspective to 600px to reduce vertical distortion (prevents clipping)
+          perspective: "600px", 
           overflow: "hidden",
-          pointerEvents: "none" // Let clicks pass through to main
+          pointerEvents: "none"
       }}>
         <style>
             {`
@@ -95,7 +93,7 @@ export default function FlyRunnerPage() {
             `}
         </style>
 
-        {/* 1. SKY / CEILING */}
+        {/* 1. SKY */}
         <div style={{
             position: "absolute", top: "50%", left: "50%",
             width: "300vw", height: "400vmax",
@@ -115,38 +113,45 @@ export default function FlyRunnerPage() {
             animation: `moveRoad ${isPlaying ? "0.2s" : "0s"} linear infinite`
         }} />
 
-        {/* 3. LEFT WALL (With Roof Fix) */}
+        {/* 3. LEFT WALL */}
         <div style={{
             position: "absolute", top: "50%", left: "50%",
             width: "400vmax", 
-            height: "800vh", // MASSIVE HEIGHT = No clipped roofs
+            height: "800vh", // Keep wall container huge
             backgroundImage: `url('${WALL_LEFT_IMG}')`,
-            backgroundSize: `${TILE_SIZE} 130vh`, // Height matches the "visible" area we want
+            
+            // FIX 2: Set texture height to 85vh. 
+            // This ensures the building only takes up 85% of the screen height, leaving 15% for sky.
+            backgroundSize: `${TILE_SIZE} 85vh`, 
+            
             backgroundRepeat: "repeat-x",
-            backgroundPosition: "left bottom", // Anchor image to bottom
-            // Move container UP (-94%) so the bottom (shops) aligns with road
-            transform: "translate(-50%, -94%) rotateY(90deg) translateZ(-110vw)",
+            backgroundPosition: "left bottom", 
+            // Moved TranslateZ back slightly (-130vw) to widen the street view
+            transform: "translate(-50%, -94%) rotateY(90deg) translateZ(-130vw)",
             animation: `moveWallLeft ${animationDuration} linear infinite`,
             backfaceVisibility: "hidden",
             filter: "brightness(0.9)"
         }} />
 
-        {/* 4. RIGHT WALL (With Roof Fix) */}
+        {/* 4. RIGHT WALL */}
         <div style={{
             position: "absolute", top: "50%", left: "50%",
             width: "400vmax", 
             height: "800vh",
             backgroundImage: `url('${WALL_RIGHT_IMG}')`,
-            backgroundSize: `${TILE_SIZE} 130vh`,
+            
+            // FIX 2: Match Left Wall
+            backgroundSize: `${TILE_SIZE} 85vh`,
+            
             backgroundRepeat: "repeat-x",
             backgroundPosition: "left bottom",
-            transform: "translate(-50%, -94%) rotateY(-90deg) translateZ(-110vw)",
+            transform: "translate(-50%, -94%) rotateY(-90deg) translateZ(-130vw)",
             animation: `moveWallRight ${animationDuration} linear infinite`,
             backfaceVisibility: "hidden",
             filter: "brightness(0.9)"
         }} />
 
-        {/* 5. FOG (Hides the end) */}
+        {/* 5. FOG */}
         <div style={{
             position: "absolute", inset: 0,
             background: "radial-gradient(circle at center, transparent 30%, #000 95%)",
@@ -155,16 +160,14 @@ export default function FlyRunnerPage() {
       </div>
 
       {/* ========================================================
-          GAME OBJECTS & UI
+          UI & SHIP
          ======================================================== */}
       
-      {/* THE SHIP */}
       <div style={{
             position: "absolute", bottom: "15%", left: "50%",
             transform: `translateX(-50%) translateX(${shipPosition * 4}px)`, 
             transition: "transform 0.05s linear", zIndex: 50, pointerEvents: "none"
       }}>
-        {/* Neon Pink Triangle */}
         <div style={{ 
             width: "0", height: "0", 
             borderLeft: "20px solid transparent", 
@@ -174,10 +177,7 @@ export default function FlyRunnerPage() {
         }} />
       </div>
 
-      {/* UI OVERLAY */}
       <div style={{ position: "relative", zIndex: 100, height: "100%", pointerEvents: "none" }}>
-        
-        {/* HUD */}
         <div style={{ display: "flex", justifyContent: "space-between", padding: "20px", color: "white", fontFamily: "monospace", textShadow: "2px 2px 0 #000" }}>
             <div>
                 <span style={{ background: isPlaying ? "red" : "gray", padding: "2px 6px", marginRight: "10px" }}>
@@ -193,7 +193,6 @@ export default function FlyRunnerPage() {
             </Link>
         </div>
 
-        {/* START SCREEN (This replaces "TESTING 3D ENGINE") */}
         {!isPlaying && (
             <div style={{
                 position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
@@ -212,7 +211,6 @@ export default function FlyRunnerPage() {
         )}
       </div>
 
-      {/* CLICK CATCHER (For Safety) */}
       {!isPlaying && (
         <div style={{
             position: "absolute", inset: 0, zIndex: 9999, cursor: "pointer"
