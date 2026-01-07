@@ -1,28 +1,30 @@
 "use client";
 
 import React from "react";
-// We use the Default import here to be safe
-import TunnelView from "@/components/TunnelView"; 
+// Import the game logic you already created
+import FlyRunnerGame from "@/components/minigames/FlyerRunner";
 import Link from "next/link";
 
 export default function ArcadePage() {
   return (
-    <main style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden", background: "black" }}>
+    <main style={{ width: "100vw", height: "100vh", background: "black" }}>
+      {/* Render the Game Component */}
+      <FlyRunnerGame />
       
-      {/* Background */}
-      <TunnelView isPlaying={true} speedModifier={0.5} />
-
-      <div style={{ position: "relative", zIndex: 10, padding: "40px", color: "white", fontFamily: "monospace" }}>
-        <h1>ARCADE TEST ZONE</h1>
-        <p>Testing 3D Engine...</p>
-        
-        <br />
-        
-        <Link href="/" style={{ color: "#0ff", fontSize: "20px" }}>
-           [ GO BACK HOME ]
+      {/* Optional: Floating Exit Button (if the game component doesn't have one) */}
+      <div style={{ position: "absolute", top: 20, right: 20, zIndex: 10000 }}>
+        <Link href="/" style={{ 
+            background: "white", 
+            color: "black", 
+            padding: "8px 16px", 
+            fontFamily: "monospace", 
+            fontWeight: "bold",
+            textDecoration: "none",
+            border: "2px solid #0f0"
+        }}>
+            EXIT TO DESKTOP
         </Link>
       </div>
-
     </main>
   );
 }
