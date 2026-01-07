@@ -10,7 +10,7 @@ const WALL_RIGHT_IMG = "/texture_leeds_right_v3.png";
 // IMPORTANT: This must match your image width exactly to prevent skipping.
 // Since we are scaling height to 100%, the width might scale dynamically.
 // We use a large percent for movement to ensure smooth loops.
-const TILE_WIDTH = "3072px"; 
+const TILE_WIDTH = "2048px"; 
 
 export default function FlyRunnerGame() {
   const [isPlaying, setIsPlaying] = useState(false);
