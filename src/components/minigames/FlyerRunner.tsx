@@ -7,9 +7,11 @@ import Link from "next/link";
 const WALL_LEFT_IMG = "/texture_leeds_left_v3.png";
 const WALL_RIGHT_IMG = "/texture_leeds_right_v3.png";
 
-// SCALING: We use 1456px (Half of 2912px) to make the buildings look smaller/crisper
-// so "more of the wall" fits on screen.
-const TEXTURE_SIZE = "1456px"; 
+// SCALING FIX: 
+// Original image is 2912px.
+// We force it to display at 728px (25% scale).
+// This creates "smaller" buildings, revealing more of the wall structure.
+const TILE_WIDTH = "728px"; 
 
 export default function FlyRunnerGame() {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -18,7 +20,6 @@ export default function FlyRunnerGame() {
   
   const mainRef = useRef<HTMLElement>(null);
 
-  // SPEED CURVE
   const calculateSpeed = () => {
     if (!isPlaying) return "0s";
     const maxSpeed = 0.8; 
@@ -63,29 +64,29 @@ export default function FlyRunnerGame() {
       return {
         position: "absolute", 
         
-        // ALIGNMENT LOCK:
-        // Anchoring 'bottom' to '50%' puts the bottom edge of the wall
-        // exactly at the horizon line (where the road is).
-        bottom: "50%",
+        // ALIGNMENT (The "Shops on Pavement" lock):
+        // Top: 50% places the top edge of the div at the screen center.
+        // We will transform it UP by 100% of its height so its BOTTOM sits at 50%.
+        top: "50%",
         left: "50%",
         
-        // DIMENSIONS:
-        // Width: 5000vw ensures it loops endlessly into the distance without cutting off.
-        // Height: 100vh (Tall enough to cover the top of the screen).
-        width: "5000vw", 
-        height: "100vh", 
+        // INFINITY FIX:
+        // 50,000px width. Since we rotate 90deg, this becomes DEPTH.
+        // This is physically long enough to go past the vanishing point.
+        width: "50000px", 
+        height: "500px", // Fixed height for the building strip (prevents stretching)
         
         backgroundImage: `url('${img}')`,
         imageRendering: "pixelated",
         
-        // SCALING FIX:
-        // Width: TEXTURE_SIZE (1456px) - Scales it down to show more building.
-        // Height: 'auto' - Maintains aspect ratio so they don't look stretched.
-        backgroundSize: `${TEXTURE_SIZE} auto`, 
+        // SCALING FIX (The "Too Large" Fix):
+        // Width: 728px (Small crisp buildings).
+        // Height: 100% (Fills the 500px container).
+        backgroundSize: `${TILE_WIDTH} 100%`, 
         backgroundRepeat: "repeat-x",
         
-        // ANCHOR TEXTURE:
-        // 'left bottom' ensures the shops (bottom of image) sit on the road (bottom of div).
+        // ALIGNMENT:
+        // Anchors texture to bottom-left.
         backgroundPosition: "left bottom", 
 
         willChange: "background-position", 
@@ -93,15 +94,17 @@ export default function FlyRunnerGame() {
             ? `moveWallLeft ${animationDuration} linear infinite`
             : `moveWallRight ${animationDuration} linear infinite`,
 
-        // PIVOT ARCHITECTURE:
-        // We move the wall to the edge of the road (30vw).
-        // We hinge it exactly on that edge so it creates a perfect corridor.
+        // HINGE ARCHITECTURE:
+        // 1. Move to road edge (30vw).
+        // 2. Set Hinge Point (transformOrigin) to that edge.
         marginLeft: isLeft ? "-30vw" : "30vw", 
         transformOrigin: isLeft ? "right bottom" : "left bottom",
         
         transform: isLeft
-            ? `translateX(-100%) rotateY(90deg)` // Left wall extends BACKWARDS from the hinge
-            : `rotateY(-90deg)`,                 // Right wall extends BACKWARDS from the hinge
+            // Left Wall: Shift up 100% (so bottom touches road), Rotate 90deg
+            ? `translateY(-100%) rotateY(90deg)` 
+            // Right Wall: Shift up 100% (so bottom touches road), Rotate -90deg
+            : `translateY(-100%) rotateY(-90deg)`,
 
         backfaceVisibility: "visible", 
         filter: "brightness(0.95)"
@@ -125,14 +128,14 @@ export default function FlyRunnerGame() {
       <div style={{
           position: "absolute", inset: 0,
           perspective: "300px", 
-          perspectiveOrigin: "50% 25%", // Slightly raised camera
+          perspectiveOrigin: "50% 25%", // Camera Height
           overflow: "hidden",
           pointerEvents: "none",
       }}>
         <style>
             {`
-            @keyframes moveWallLeft { from { background-position-x: 0px; } to { background-position-x: -${TEXTURE_SIZE}; } }
-            @keyframes moveWallRight { from { background-position-x: 0px; } to { background-position-x: ${TEXTURE_SIZE}; } }
+            @keyframes moveWallLeft { from { background-position-x: 0px; } to { background-position-x: -${TILE_WIDTH}; } }
+            @keyframes moveWallRight { from { background-position-x: 0px; } to { background-position-x: ${TILE_WIDTH}; } }
             @keyframes moveRoad { from { background-position-y: 0px; } to { background-position-y: 200px; } }
             `}
         </style>
@@ -141,7 +144,7 @@ export default function FlyRunnerGame() {
         <div style={{
             position: "absolute", inset: 0,
             transformStyle: "preserve-3d",
-            transform: "rotateX(10deg)" // Downward tilt for horizon curve
+            transform: "rotateX(10deg)" // Horizon Curve
         }}>
 
             {/* ROAD */}
@@ -182,7 +185,6 @@ export default function FlyRunnerGame() {
       {/* SHIP */}
       <div style={{
             position: "absolute", bottom: "10%", left: "50%",
-            // MOVEMENT: 60vw / 5 lanes = 12vw per step
             transform: `translateX(-50%) translateX(${lane * 12}vw)`, 
             transition: "transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
             zIndex: 50, pointerEvents: "none"
