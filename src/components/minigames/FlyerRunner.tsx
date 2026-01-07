@@ -7,9 +7,7 @@ import Link from "next/link";
 const WALL_LEFT_IMG = "/texture_leeds_left_v3.png";
 const WALL_RIGHT_IMG = "/texture_leeds_right_v3.png";
 
-// SCALING: 
-// 728px width (Small/Crisp buildings). 
-// This reveals more wall tiles on screen as requested.
+// TILE_WIDTH: 728px (Scaled for crisp look)
 const TILE_WIDTH = "728px"; 
 
 export default function FlyRunnerGame() {
@@ -19,11 +17,15 @@ export default function FlyRunnerGame() {
   
   const mainRef = useRef<HTMLElement>(null);
 
+  // SPEED SYNC FIX:
+  // Drastically lowered the duration values.
+  // 0.5s is a brisk jog. 0.1s is full sprint.
+  // This ensures the loop speed matches the intense perspective.
   const calculateSpeed = () => {
     if (!isPlaying) return "0s";
-    const maxSpeed = 0.8; 
-    const minSpeed = 3.0;
-    const decay = Math.min(1, score / 8000); 
+    const maxSpeed = 0.1; 
+    const minSpeed = 0.5;
+    const decay = Math.min(1, score / 5000); 
     const current = minSpeed - (decay * (minSpeed - maxSpeed));
     return `${current}s`;
   };
@@ -62,51 +64,43 @@ export default function FlyRunnerGame() {
       
       return {
         position: "absolute", 
-        
-        // ALIGNMENT (The "Safe Patch" Logic):
-        // Anchoring 'bottom' to '50%' aligns the shop floor with the road.
-        bottom: "50%",
+        bottom: "50%", // Safe Patch Alignment
         
         // DIMENSIONS:
-        // 50,000px guarantees it loops past the vanishing point.
         width: "50000px", 
-        height: "500px", // Fixed height for proper scaling
+        height: "500px", 
         
         backgroundImage: `url('${img}')`,
         imageRendering: "pixelated",
         
-        // SCALING:
         backgroundSize: `${TILE_WIDTH} 100%`, 
         backgroundRepeat: "repeat-x",
         backgroundPosition: "left bottom", 
 
         willChange: "background-position", 
-        animation: isLeft 
-            ? `moveWallLeft ${animationDuration} linear infinite`
-            : `moveWallRight ${animationDuration} linear infinite`,
-
-        // --- THE GEOMETRY FIX ---
         
-        // LEFT WALL:
-        // 1. Position: Start at the center (right: 50%).
-        // 2. Margin: Push it LEFT by 30vw (Road edge).
-        // 3. Hinge: Pivot on the RIGHT bottom corner (The corner touching the road).
-        // 4. Rotate: -90deg. This swings the 50,000px tail away from the camera into -Z.
+        // DIRECTION FIX:
+        // Changed animation names to ensure they flow TOWARDS the camera.
+        animation: isLeft 
+            ? `moveWallForward ${animationDuration} linear infinite`
+            : `moveWallForward ${animationDuration} linear infinite`,
+
+        // --- GEOMETRY & FOREGROUND FIX ---
+        
         ...(isLeft ? {
             right: "50%",
             marginRight: "30vw",
             transformOrigin: "right bottom",
-            transform: "rotateY(-90deg)"
+            // FOREGROUND FIX:
+            // translateZ(1000px) pulls the entire infinite wall 1000px TOWARDS/BEHIND the camera.
+            // This ensures the wall starts behind your head, filling the immediate corners of the screen.
+            transform: "translateZ(1000px) rotateY(-90deg)"
         } : {
-        // RIGHT WALL:
-        // 1. Position: Start at the center (left: 50%).
-        // 2. Margin: Push it RIGHT by 30vw (Road edge).
-        // 3. Hinge: Pivot on the LEFT bottom corner (The corner touching the road).
-        // 4. Rotate: 90deg. This swings the 50,000px tail away from the camera into -Z.
             left: "50%",
             marginLeft: "30vw",
             transformOrigin: "left bottom",
-            transform: "rotateY(90deg)"
+            // FOREGROUND FIX:
+            transform: "translateZ(1000px) rotateY(90deg)"
         }),
 
         backfaceVisibility: "visible", 
@@ -125,25 +119,32 @@ export default function FlyRunnerGame() {
             background: "#87CEEB" 
         }}
     >
-      {/* ========================================================
-          VISUAL ENGINE
-         ======================================================== */}
       <div style={{
           position: "absolute", inset: 0,
           perspective: "300px", 
-          perspectiveOrigin: "50% 25%", // Safe Patch Camera Height
+          perspectiveOrigin: "50% 25%", // Safe Patch Height
           overflow: "hidden",
           pointerEvents: "none",
       }}>
+        {/* DIRECTION FIX:
+            Keyframes updated. 
+            Moving from 0 to TILE_WIDTH creates the slide effect. 
+            If it feels backwards, simply swap 'from' and 'to' values here.
+        */}
         <style>
             {`
-            @keyframes moveWallLeft { from { background-position-x: 0px; } to { background-position-x: -${TILE_WIDTH}; } }
-            @keyframes moveWallRight { from { background-position-x: 0px; } to { background-position-x: ${TILE_WIDTH}; } }
-            @keyframes moveRoad { from { background-position-y: 0px; } to { background-position-y: 200px; } }
+            @keyframes moveWallForward { 
+                from { background-position-x: 0px; } 
+                to { background-position-x: ${TILE_WIDTH}; } 
+            }
+            @keyframes moveRoad { 
+                from { background-position-y: 0px; } 
+                to { background-position-y: 200px; } 
+            }
             `}
         </style>
 
-        {/* WORLD WRAPPER (The Curve) */}
+        {/* WORLD WRAPPER */}
         <div style={{
             position: "absolute", inset: 0,
             transformStyle: "preserve-3d",
@@ -157,7 +158,6 @@ export default function FlyRunnerGame() {
                 height: "800vh",
                 backgroundColor: "#222",
                 
-                // 5 LANES
                 backgroundImage: `
                     linear-gradient(to right, 
                         transparent 19%, rgba(255,255,255,0.5) 20%, transparent 21%,
@@ -171,7 +171,7 @@ export default function FlyRunnerGame() {
                 imageRendering: "pixelated",
 
                 transform: "translate(-50%, -50%) rotateX(90deg)",
-                animation: `moveRoad ${isPlaying ? "0.2s" : "0s"} linear infinite`,
+                animation: `moveRoad ${isPlaying ? "0.1s" : "0s"} linear infinite`,
             }} />
 
             {/* WALLS */}
@@ -181,24 +181,18 @@ export default function FlyRunnerGame() {
         </div>
       </div>
 
-      {/* ========================================================
-          UI & SHIP
-         ======================================================== */}
-      
-      {/* SHIP */}
+      {/* SHIP & HUD */}
       <div style={{
             position: "absolute", bottom: "10%", left: "50%",
             transform: `translateX(-50%) translateX(${lane * 12}vw)`, 
             transition: "transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
             zIndex: 50, pointerEvents: "none"
       }}>
-        {/* Shadow */}
         <div style={{
             position: "absolute", bottom: "-20px", left: "50%", transform: "translateX(-50%) scale(1, 0.3)",
             width: "80px", height: "80px", background: "black", borderRadius: "50%", opacity: 0.5,
             filter: "blur(8px)"
         }} />
-        {/* Ship Body */}
         <div style={{ 
             width: "0", height: "0", 
             borderLeft: "30px solid transparent", 
@@ -208,7 +202,6 @@ export default function FlyRunnerGame() {
         }} />
       </div>
 
-      {/* HUD */}
       <div style={{ position: "relative", zIndex: 100, height: "100%", pointerEvents: "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", padding: "20px", color: "white", fontFamily: "monospace", textShadow: "1px 1px 2px #000" }}>
             <div>
