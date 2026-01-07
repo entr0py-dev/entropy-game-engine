@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 
 // --- CONFIGURATION ---
-// RESTORED TO .PNG AS REQUESTED
 const WALL_LEFT_IMG = "/texture_leeds_left_v3.png";
 const WALL_RIGHT_IMG = "/texture_leeds_right_v3.png";
 const TILE_WIDTH = "2912px"; 
@@ -61,15 +60,16 @@ export default function FlyRunnerGame() {
       return {
         position: "absolute", 
         top: "50%",
-        left: "50%",
         
+        // ANCHOR TO ROAD EDGE:
+        // Road is 60vw wide, centered at 50%. So its edges are at 20% and 80%.
+        // Left wall is anchored to the road's left edge (20% from left, or 30vw from center).
+        // Right wall is anchored to the road's right edge (80% from left, or 30vw from center).
+        [isLeft ? 'right' : 'left']: "30vw",
+
         // DIMENSIONS:
-        // Height: 300vh (Tall enough to cover vertical view)
-        // Width: 2000vw (Massive depth).
-        // Since we rotate around the center, 1000vw goes forward, 1000vw goes backward.
-        // This ensures the wall NEVER disappears.
-        height: "300vh", 
-        width: "2000vw", 
+        height: "200vh", 
+        width: "1000vw", // Deep tunnel
         
         backgroundImage: `url('${img}')`,
         imageRendering: "pixelated",
@@ -83,14 +83,17 @@ export default function FlyRunnerGame() {
             ? `moveWallLeft ${animationDuration} linear infinite`
             : `moveWallRight ${animationDuration} linear infinite`,
 
-        // THE GEOMETRY FIX (Center Pivot):
-        // 1. translate(-50%, -50%): Centers the div itself.
-        // 2. translateX(offset): Pushes it left/right to the road edge.
-        // 3. rotateY(90deg): Turns it into a wall.
+        // GEOMETRY FIX (Edge Anchor):
+        // 1. translateY(-50%): Center vertically.
+        // 2. rotateY(90deg): Rotate to form a wall.
         transform: isLeft
-            ? `translate(-50%, -50%) translateX(-30vw) rotateY(90deg)`  // Left Wall
-            : `translate(-50%, -50%) translateX(30vw) rotateY(-90deg)`, // Right Wall
+            ? `translateY(-50%) rotateY(90deg)`  // Left Wall
+            : `translateY(-50%) rotateY(-90deg)`, // Right Wall
 
+        // PIVOT POINT:
+        // Pivot from the edge touching the road.
+        transformOrigin: isLeft ? "right center" : "left center",
+        
         backfaceVisibility: "visible", 
         filter: "brightness(0.9)"
       };
@@ -113,7 +116,7 @@ export default function FlyRunnerGame() {
       <div style={{
           position: "absolute", inset: 0,
           perspective: "350px", 
-          perspectiveOrigin: "50% 30%", // Camera Height
+          perspectiveOrigin: "50% 40%", // Camera Height
           overflow: "hidden",
           pointerEvents: "none",
       }}>
@@ -129,14 +132,15 @@ export default function FlyRunnerGame() {
         <div style={{
             position: "absolute", inset: 0,
             transformStyle: "preserve-3d",
-            transform: "rotateX(5deg)" // Curve down
+            // INCREASED CURVATURE: Changed from 5deg to 10deg for a more dramatic drop.
+            transform: "rotateX(10deg)" 
         }}>
 
             {/* ROAD */}
             <div style={{
                 position: "absolute", top: "50%", left: "50%",
                 
-                // WIDTH: 60vw (Matches the wall offset of +/- 30vw)
+                // WIDTH: 60vw
                 width: "60vw", 
                 
                 height: "800vh",
@@ -167,12 +171,7 @@ export default function FlyRunnerGame() {
 
         </div>
 
-        {/* HORIZON MASK */}
-        <div style={{
-            position: "absolute", inset: 0,
-            background: "linear-gradient(to bottom, #87CEEB 0%, #87CEEB 30%, transparent 60%)",
-            zIndex: 10
-        }} />
+        {/* FOG REMOVED: The horizon mask is gone for a clear foreground. */}
 
       </div>
 
