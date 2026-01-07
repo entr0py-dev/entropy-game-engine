@@ -8,6 +8,10 @@ export default function FlyRunnerPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [score, setScore] = useState(0);
   
+  // SHIP STATE: -100 (Far Left) to 100 (Far Right)
+  const [shipPosition, setShipPosition] = useState(0);
+  const SHIP_SPEED = 8; // How fast the ship moves laterally
+
   // Ref to handle focus
   const mainRef = useRef<HTMLElement>(null);
 
@@ -23,10 +27,25 @@ export default function FlyRunnerPage() {
   // KEYBOARD LISTENER
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === "Space") {
+      // Start game with Space
+      if (e.code === "Space" && !isPlaying) {
         startGame();
+        return;
+      }
+
+      // Movement Logic
+      if (isPlaying) {
+        if (e.key === "ArrowLeft" || e.key === "a") {
+          setShipPosition(prev => Math.max(prev - SHIP_SPEED, -90)); // Cap at -90
+        }
+        if (e.key === "ArrowRight" || e.key === "d") {
+          setShipPosition(prev => Math.min(prev + SHIP_SPEED, 90)); // Cap at 90
+        }
       }
     };
+
+    // Note: For smoother movement, typically we'd use a requestAnimationFrame loop 
+    // and track keydown/keyup states, but this is sufficient for simple left/right stepping.
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isPlaying]);
@@ -44,6 +63,8 @@ export default function FlyRunnerPage() {
     <main 
         ref={mainRef}
         onClick={startGame} // Clicking anywhere starts the game
+        // Make element focusable to capture keyboard events
+        tabIndex={0} 
         style={{ 
             width: "100vw", 
             height: "100vh", 
@@ -57,6 +78,55 @@ export default function FlyRunnerPage() {
       
       {/* 3D WORLD - Controlled by state */}
       <TunnelView isPlaying={isPlaying} />
+
+      {/* --- THE SHIP --- */}
+      {/* Overlaying the ship on top of the tunnel view */}
+      <div 
+        style={{
+            position: "absolute",
+            bottom: "15%", // Positioned on the "road"
+            left: "50%",
+            transform: `translateX(-50%) translateX(${shipPosition * 4}px)`, // Move based on state
+            transition: "transform 0.05s linear", // Slight smoothing
+            zIndex: 50,
+            pointerEvents: "none"
+        }}
+      >
+        {/* SHIP GRAPHIC (Simple CSS Triangle/Engine) */}
+        <div style={{ position: "relative" }}>
+            {/* Body */}
+            <div style={{
+                width: "0", 
+                height: "0", 
+                borderLeft: "20px solid transparent",
+                borderRight: "20px solid transparent",
+                borderBottom: "60px solid #ff00ff", // Neon Pink Ship
+                filter: "drop-shadow(0 0 10px #ff00ff)"
+            }} />
+            
+            {/* Engine Glow */}
+            {isPlaying && (
+                <div style={{
+                    position: "absolute",
+                    bottom: "-10px",
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    width: "10px",
+                    height: "30px",
+                    background: "cyan",
+                    filter: "blur(5px)",
+                    animation: "pulseEngine 0.2s infinite alternate"
+                }} />
+            )}
+            
+            <style>{`
+                @keyframes pulseEngine {
+                    from { height: 20px; opacity: 0.8; }
+                    to { height: 35px; opacity: 1; }
+                }
+            `}</style>
+        </div>
+      </div>
 
       {/* UI OVERLAY */}
       <div style={{ position: "relative", zIndex: 100, height: "100%", pointerEvents: "none" }}>
@@ -129,9 +199,16 @@ export default function FlyRunnerPage() {
                     PRESS [SPACE] TO START
                 </div>
 
-                <p style={{ marginTop: "20px", textShadow: "1px 1px 0 #000" }}>
-                    (Or click screen)
-                </p>
+                <div style={{ 
+                    marginTop: "30px", 
+                    display: "flex", 
+                    justifyContent: "center", 
+                    gap: "20px",
+                    textShadow: "1px 1px 0 #000" 
+                }}>
+                    <div style={{ border: "1px solid white", padding: "10px" }}>⬅️ LEFT</div>
+                    <div style={{ border: "1px solid white", padding: "10px" }}>RIGHT ➡️</div>
+                </div>
             </div>
         )}
 
