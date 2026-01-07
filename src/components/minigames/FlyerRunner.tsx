@@ -7,25 +7,23 @@ import Link from "next/link";
 const WALL_LEFT_IMG = "/texture_leeds_left_v3.png";
 const WALL_RIGHT_IMG = "/texture_leeds_right_v3.png";
 
-// [CRITICAL FIX] Exact width of your image. 
-// This ensures the animation loop aligns perfectly with no skip.
+// CRITICAL: Matches your 2912px image width
 const TILE_WIDTH = "2912px"; 
 
 export default function FlyRunnerGame() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [score, setScore] = useState(0);
   
-  // LANE SYSTEM: -2 (Far Left) to 2 (Far Right)
+  // 5 LANES: -2, -1, 0, 1, 2
   const [lane, setLane] = useState(0); 
   
   const mainRef = useRef<HTMLElement>(null);
 
-  // ALGORITHMIC DIFFICULTY: Speed increases with score
+  // Speed Curve
   const calculateSpeed = () => {
     if (!isPlaying) return "0s";
     const maxSpeed = 1.0; 
     const minSpeed = 4.0;
-    // Reach max speed at 5000 points
     const decay = Math.min(1, score / 5000); 
     const current = minSpeed - (decay * (minSpeed - maxSpeed));
     return `${current}s`;
@@ -72,33 +70,32 @@ export default function FlyRunnerGame() {
       top: "50%", 
       left: "50%",
       
-      // CONTAINER: Massive height to ensure roofs are never clipped
+      // CONTAINER: Huge height to catch roofs
       width: "1000vw", 
       height: "400vh", 
       
       backgroundImage: `url('${img}')`,
-      
-      // TEXTURE: Fixed width (2912px) to match loop, Auto height to preserve aspect ratio
-      backgroundSize: `${TILE_WIDTH} auto`, 
-      
+      backgroundSize: `${TILE_WIDTH} auto`, // Fixed width, auto height
       backgroundRepeat: "repeat-x",
-      backgroundPosition: "left bottom", // Anchor shops to road
+      backgroundPosition: "left bottom", // Anchors image to the bottom of the div
 
-      // ANIMATION
       willChange: "background-position", 
       animation: side === 'left' 
         ? `moveWallLeft ${animationDuration} linear infinite`
         : `moveWallRight ${animationDuration} linear infinite`,
 
-      // TRANSFORM (The "Funnel" Perspective)
+      // TRANSFORM (ALIGNMENT FIX):
+      // 1. translateY(-60%): Lifts the container up. 
+      //    Since image is bottom-aligned, this brings the "pavement" up to meet the road.
+      // 2. translateZ(-50vw): Brings walls horizontally closer for the "tight street" feel.
       transform: `
-        translate(-50%, -55%) 
-        rotateY(${side === 'left' ? '89deg' : '-89deg'}) 
+        translate(-50%, -60%) 
+        rotateY(${side === 'left' ? '90deg' : '-90deg'}) 
         translateZ(-50vw)
       `,
       
       backfaceVisibility: "hidden",
-      filter: "brightness(0.8)" 
+      filter: "brightness(0.9)" 
   });
 
   return (
@@ -117,7 +114,13 @@ export default function FlyRunnerGame() {
          ======================================================== */}
       <div style={{
           position: "absolute", inset: 0,
-          perspective: "300px", 
+          perspective: "350px", 
+          
+          // CRITICAL FIX: CAMERA HEIGHT
+          // By moving the origin UP to 30%, we simulate the eye level moving DOWN.
+          // This makes the floor plane rise to meet the viewer.
+          perspectiveOrigin: "50% 30%",
+          
           overflow: "hidden",
           pointerEvents: "none"
       }}>
@@ -141,28 +144,32 @@ export default function FlyRunnerGame() {
         {/* ROAD (5 LANES) */}
         <div style={{
             position: "absolute", top: "50%", left: "50%",
-            width: "180vw", 
+            width: "100vw", // Matches street width (50vw left + 50vw right)
             height: "800vh",
             backgroundColor: "#222",
             
-            // 5 LANES = 4 DIVIDER LINES
+            // 5-LANE MARKINGS
+            // Creates 4 dashed lines to divide the 100vw into 5 sections
             backgroundImage: `
                 linear-gradient(to right, 
-                    transparent 19%, rgba(255,255,255,0.3) 20%, transparent 21%,
-                    transparent 39%, rgba(255,255,255,0.3) 40%, transparent 41%,
-                    transparent 59%, rgba(255,255,255,0.3) 60%, transparent 61%,
-                    transparent 79%, rgba(255,255,255,0.3) 80%, transparent 81%
+                    transparent 19%, rgba(255,255,255,0.4) 20%, transparent 21%,
+                    transparent 39%, rgba(255,255,255,0.4) 40%, transparent 41%,
+                    transparent 59%, rgba(255,255,255,0.4) 60%, transparent 61%,
+                    transparent 79%, rgba(255,255,255,0.4) 80%, transparent 81%
                 ),
                 repeating-linear-gradient(to bottom, #333 0, #333 20px, #222 20px, #222 40px)
             `,
             backgroundSize: "100% 100%, 100% 40px",
             
-            transform: "translate(-50%, -50%) rotateX(90deg) translateZ(-25vh)",
+            // TRANSFORM FIX:
+            // translateZ(-5vh): Raises the road almost to center (0), removing the "floating" feeling.
+            transform: "translate(-50%, -50%) rotateX(90deg) translateZ(-5vh)",
+            
             animation: `moveRoad ${isPlaying ? "0.2s" : "0s"} linear infinite`,
             
             // FOG MASK
-            maskImage: "linear-gradient(to bottom, black 0%, black 40%, transparent 100%)",
-            WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 40%, transparent 100%)"
+            maskImage: "linear-gradient(to bottom, black 0%, black 50%, transparent 95%)",
+            WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 50%, transparent 95%)"
         }} />
 
         {/* LEFT WALL */}
@@ -174,7 +181,7 @@ export default function FlyRunnerGame() {
         {/* DISTANCE FOG */}
         <div style={{
             position: "absolute", inset: 0,
-            background: "radial-gradient(circle at center, transparent 20%, #000 90%)",
+            background: "radial-gradient(circle at center, transparent 10%, #000 90%)",
             zIndex: 10
         }} />
       </div>
@@ -186,15 +193,16 @@ export default function FlyRunnerGame() {
       {/* SHIP */}
       <div style={{
             position: "absolute", bottom: "10%", left: "50%",
-            // Lane Calculation: Move 12vw per lane step
-            transform: `translateX(-50%) translateX(${lane * 12}vw)`, 
-            transition: "transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)", 
+            // MOVEMENT: 20vw per lane step (100vw / 5 lanes = 20vw)
+            // This aligns the ship perfectly with the drawn lines.
+            transform: `translateX(-50%) translateX(${lane * 20}vw)`, 
+            transition: "transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275)", 
             zIndex: 50, pointerEvents: "none"
       }}>
         {/* Glow */}
         <div style={{
             position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-            width: "100px", height: "100px", background: "radial-gradient(circle, rgba(0,255,153,0.4) 0%, transparent 70%)"
+            width: "120px", height: "120px", background: "radial-gradient(circle, rgba(0,255,153,0.3) 0%, transparent 70%)"
         }} />
         
         {/* Ship Model */}
@@ -234,9 +242,6 @@ export default function FlyRunnerGame() {
                 </h1>
                 <div className="animate-pulse" style={{ background: "black", color: "#00ff99", padding: "15px 30px", fontSize: "1.5rem", border: "2px solid #00ff99", display: "inline-block", boxShadow: "0 0 20px #00ff99" }}>
                     CLICK TO START
-                </div>
-                <div style={{ marginTop: "20px", fontSize: "0.8rem", opacity: 0.7 }}>
-                    Use Left/Right Arrows to Switch Lanes
                 </div>
             </div>
         )}
