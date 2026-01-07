@@ -60,8 +60,8 @@ export default function FlyRunnerGame() {
         style={{ 
             width: "100vw", height: "100vh", position: "relative", 
             overflow: "hidden", outline: "none", userSelect: "none",
-            // SKY BACKGROUND: Applied to the container so nothing "clips" the walls
-            background: "linear-gradient(to bottom, #020024 0%, #090979 40%, #00d4ff 100%)"
+            // Dark Sky Gradient
+            background: "linear-gradient(to bottom, #000000 0%, #1a1a2e 100%)"
         }}
     >
       {/* ========================================================
@@ -69,7 +69,7 @@ export default function FlyRunnerGame() {
          ======================================================== */}
       <div style={{
           position: "absolute", inset: 0,
-          perspective: "350px", // Restored perspective for depth
+          perspective: "500px", 
           overflow: "hidden",
           pointerEvents: "none"
       }}>
@@ -90,64 +90,67 @@ export default function FlyRunnerGame() {
             `}
         </style>
 
-        {/* --- NO CEILING PLANE (Fixes "Invisible Line" clipping) --- */}
-
         {/* ROAD */}
         <div style={{
             position: "absolute", top: "50%", left: "50%",
             width: "300vw", height: "400vmax",
-            backgroundColor: "#222",
+            backgroundColor: "#111",
             backgroundImage: "repeating-linear-gradient(to bottom, #fff, #fff 50px, transparent 50px, transparent 100px)",
             backgroundSize: "20px 100%", backgroundPosition: "center top", backgroundRepeat: "no-repeat",
-            // Road Position: 30vh below center
-            transform: "translate(-50%, -50%) rotateX(90deg) translateZ(-30vh)",
+            // Road Lowered slightly
+            transform: "translate(-50%, -50%) rotateX(90deg) translateZ(-40vh)",
             animation: `moveRoad ${isPlaying ? "0.2s" : "0s"} linear infinite`
         }} />
 
         {/* LEFT WALL */}
         <div style={{
             position: "absolute", top: "50%", left: "50%",
-            width: "400vmax", 
-            height: "800vh", // Massive height container
+            width: "600vmax", // Ultra wide to prevent flicker
+            height: "500vh",  // Tall container
             backgroundImage: `url('${WALL_LEFT_IMG}')`,
             
-            // FULL HEIGHT DISPLAY: Scale image to fill viewport height mostly
-            backgroundSize: `${TILE_SIZE} 100vh`, 
+            // FIX: TEXTURE SCALING
+            // 200vh height ensures the image is HUGE vertically.
+            // This pushes the "roof" way above the screen top.
+            backgroundSize: `${TILE_SIZE} 200vh`, 
             
             backgroundRepeat: "repeat-x",
-            backgroundPosition: "left bottom", 
+            backgroundPosition: "left bottom", // Anchor shops to road
             
-            // TRANSFORM: 
-            // translateZ(-90vw): Brought closer (was -130vw)
-            // translate(-50%, -90%): Moves the wall up so bottom matches road level roughly
-            transform: "translate(-50%, -90%) rotateY(90deg) translateZ(-90vw)",
+            // TRANSFORM ADJUSTMENT:
+            // translateZ(-100vw): Corridor width
+            // translate(-50%, -85%): Moves the wall UP.
+            // -50% is center. -85% pulls it up significantly so the bottom aligns with road.
+            transform: "translate(-50%, -85%) rotateY(90deg) translateZ(-100vw)",
             
             animation: `moveWallLeft ${animationDuration} linear infinite`,
             backfaceVisibility: "hidden",
-            filter: "brightness(0.9)"
+            filter: "brightness(0.8)"
         }} />
 
         {/* RIGHT WALL */}
         <div style={{
             position: "absolute", top: "50%", left: "50%",
-            width: "400vmax", 
-            height: "800vh",
+            width: "600vmax", 
+            height: "500vh",
             backgroundImage: `url('${WALL_RIGHT_IMG}')`,
-            backgroundSize: `${TILE_SIZE} 100vh`,
+            
+            // Match Left Wall Settings
+            backgroundSize: `${TILE_SIZE} 200vh`,
             backgroundRepeat: "repeat-x",
             backgroundPosition: "left bottom",
             
-            transform: "translate(-50%, -90%) rotateY(-90deg) translateZ(-90vw)",
+            transform: "translate(-50%, -85%) rotateY(-90deg) translateZ(-100vw)",
             
             animation: `moveWallRight ${animationDuration} linear infinite`,
             backfaceVisibility: "hidden",
-            filter: "brightness(0.9)"
+            filter: "brightness(0.8)"
         }} />
 
-        {/* FOG (Distance Hiding) */}
+        {/* DISTANCE FOG */}
         <div style={{
             position: "absolute", inset: 0,
-            background: "radial-gradient(circle at center, transparent 40%, #000 90%)",
+            background: "radial-gradient(circle at center, transparent 20%, #000 80%)",
             zIndex: 10
         }} />
       </div>
@@ -156,6 +159,7 @@ export default function FlyRunnerGame() {
           UI & SHIP
          ======================================================== */}
       
+      {/* SHIP */}
       <div style={{
             position: "absolute", bottom: "15%", left: "50%",
             transform: `translateX(-50%) translateX(${shipPosition * 4}px)`, 
@@ -165,11 +169,12 @@ export default function FlyRunnerGame() {
             width: "0", height: "0", 
             borderLeft: "20px solid transparent", 
             borderRight: "20px solid transparent",
-            borderBottom: "60px solid #ff00ff", 
-            filter: "drop-shadow(0 0 10px #ff00ff)"
+            borderBottom: "60px solid #00ff99", // Green Ship
+            filter: "drop-shadow(0 0 10px #00ff99)"
         }} />
       </div>
 
+      {/* HUD */}
       <div style={{ position: "relative", zIndex: 100, height: "100%", pointerEvents: "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", padding: "20px", color: "white", fontFamily: "monospace", textShadow: "2px 2px 0 #000" }}>
             <div>
@@ -194,11 +199,8 @@ export default function FlyRunnerGame() {
                 <h1 style={{ fontSize: "5rem", margin: "0 0 20px 0", textShadow: "4px 4px 0px #000", letterSpacing: "-2px" }}>
                     CALL LANE
                 </h1>
-                <div className="animate-pulse" style={{ background: "black", color: "#0f0", padding: "15px 30px", fontSize: "1.5rem", border: "2px solid #0f0", display: "inline-block", boxShadow: "0 0 20px #0f0" }}>
+                <div className="animate-pulse" style={{ background: "black", color: "#00ff99", padding: "15px 30px", fontSize: "1.5rem", border: "2px solid #00ff99", display: "inline-block", boxShadow: "0 0 20px #00ff99" }}>
                     CLICK TO START
-                </div>
-                <div style={{ marginTop: "20px", fontSize: "0.8rem", opacity: 0.7 }}>
-                    (Or press SPACE)
                 </div>
             </div>
         )}
