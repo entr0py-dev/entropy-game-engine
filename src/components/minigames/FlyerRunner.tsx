@@ -62,42 +62,36 @@ export default function FlyRunnerGame() {
         top: "50%",
         left: "50%",
         
-        // DIMENSIONS:
-        // Height: 250vh (Vertical coverage)
-        // Width: 1000vw (Depth of tunnel)
+        // DIMENSIONS (Kept exactly as requested):
         height: "250vh", 
-        width: "1000vw", 
+        width: "800vw", 
         
         backgroundImage: `url('${img}')`,
         imageRendering: "pixelated",
         
-        // TEXTURE FIX: 
-        // We force the width to TILE_WIDTH (2912px).
-        // This prevents the "Giant Blurry Pixel" issue by ignoring the container width.
-        backgroundSize: `${TILE_WIDTH} 100%`, 
+        // TEXTURE MAPPING FIX:
+        // 1. Width: 2912px (Native resolution, no blur).
+        // 2. Height: 50% (Fits the image into the TOP HALF of the container).
+        //    Since the container is centered, the top half ends exactly at the road.
+        backgroundSize: `${TILE_WIDTH} 50%`, 
+        
+        // 3. Anchor to Top: This draws the image from the sky down to the road.
+        //    The bottom of the image (shops) will hit the 50% mark (Road).
+        backgroundPosition: "left top", 
         backgroundRepeat: "repeat-x",
-        backgroundPosition: "left bottom", 
 
         willChange: "background-position", 
         animation: isLeft 
             ? `moveWallLeft ${animationDuration} linear infinite`
             : `moveWallRight ${animationDuration} linear infinite`,
 
-        // PLACEMENT FIX (The Hinge Method):
-        // 1. We position the DIV so it starts exactly at the road edge (+/- 30vw).
-        // 2. We set the pivot point (transformOrigin) to that edge.
-        // 3. We rotate 90 degrees back.
-        
-        // Left Wall: Positioned left of center (-30vw). Hinged on its RIGHT edge.
-        // Right Wall: Positioned right of center (+30vw). Hinged on its LEFT edge.
+        // PIVOT/HINGE ARCHITECTURE:
         marginLeft: isLeft ? "-30vw" : "30vw", 
-        transformOrigin: isLeft ? "right center" : "left center",
+        transformOrigin: isLeft ? "right center" : "left center", 
         
         transform: isLeft
-            // Move -100% (its own width) to the left so its right edge touches the road
             ? `translate(-100%, -50%) rotateY(90deg)` 
-            // Right wall starts at the road edge, so no X-translation needed
-            : `translate(0%, -50%) rotateY(-90deg)`, 
+            : `translate(0%, -50%) rotateY(-90deg)`,
 
         backfaceVisibility: "visible", 
         filter: "brightness(0.95)"
@@ -121,8 +115,7 @@ export default function FlyRunnerGame() {
       <div style={{
           position: "absolute", inset: 0,
           perspective: "300px", 
-          // HIGH CAMERA: 20% height looks down at the road, emphasizing the curve.
-          perspectiveOrigin: "50% 20%", 
+          perspectiveOrigin: "50% 20%", // High camera looking down
           overflow: "hidden",
           pointerEvents: "none",
       }}>
@@ -134,21 +127,17 @@ export default function FlyRunnerGame() {
             `}
         </style>
 
-        {/* WORLD WRAPPER (The Curve Mechanic) */}
+        {/* WORLD WRAPPER */}
         <div style={{
             position: "absolute", inset: 0,
             transformStyle: "preserve-3d",
-            // THE CURVE: 15deg tilt drops the horizon significantly.
-            transform: "rotateX(15deg)" 
+            transform: "rotateX(15deg)" // The Curve
         }}>
 
             {/* ROAD */}
             <div style={{
                 position: "absolute", top: "50%", left: "50%",
-                
-                // ROAD WIDTH: 60vw
                 width: "60vw", 
-                
                 height: "800vh",
                 backgroundColor: "#222",
                 
@@ -165,9 +154,7 @@ export default function FlyRunnerGame() {
                 backgroundSize: "100% 100%, 100% 40px",
                 imageRendering: "pixelated",
 
-                // GEOMETRY
                 transform: "translate(-50%, -50%) rotateX(90deg)",
-                
                 animation: `moveRoad ${isPlaying ? "0.2s" : "0s"} linear infinite`,
             }} />
 
@@ -176,7 +163,6 @@ export default function FlyRunnerGame() {
             <div style={getWallStyle(WALL_RIGHT_IMG, 'right')} />
 
         </div>
-
       </div>
 
       {/* ========================================================
@@ -186,20 +172,15 @@ export default function FlyRunnerGame() {
       {/* SHIP */}
       <div style={{
             position: "absolute", bottom: "10%", left: "50%",
-            // MOVEMENT CALC:
-            // Road is 60vw wide. 5 lanes.
-            // 60 / 5 = 12vw per lane.
             transform: `translateX(-50%) translateX(${lane * 12}vw)`, 
             transition: "transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
             zIndex: 50, pointerEvents: "none"
       }}>
-        {/* Shadow */}
         <div style={{
             position: "absolute", bottom: "-20px", left: "50%", transform: "translateX(-50%) scale(1, 0.3)",
             width: "80px", height: "80px", background: "black", borderRadius: "50%", opacity: 0.5,
             filter: "blur(8px)"
         }} />
-        {/* Ship Body */}
         <div style={{ 
             width: "0", height: "0", 
             borderLeft: "30px solid transparent", 
