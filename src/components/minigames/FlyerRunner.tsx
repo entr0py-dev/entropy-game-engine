@@ -59,25 +59,20 @@ export default function FlyRunnerGame() {
       
       return {
         position: "absolute", 
-        // Vertical Alignment: Center of screen
         top: "50%",
-        
-        // HINGE LOGIC:
-        // We place the div exactly at the center of the screen (left: 50%).
-        // We will then pivot it so it extends deep into the background.
         left: "50%",
         
         // DIMENSIONS:
-        // Height: Tall enough to cover vertical view.
-        // Width: This becomes the DEPTH of the tunnel because we rotate it 90deg.
-        height: "200vh", 
-        width: "500vw", // Deep tunnel
+        // Height: 300vh (Tall enough to cover vertical view)
+        // Width: 2000vw (Massive depth).
+        // Since we rotate around the center, 1000vw goes forward, 1000vw goes backward.
+        // This ensures the wall NEVER disappears.
+        height: "300vh", 
+        width: "2000vw", 
         
         backgroundImage: `url('${img}')`,
         imageRendering: "pixelated",
         
-        // TEXTURE MAPPING:
-        // Height 100% ensures the building fits vertically.
         backgroundSize: `${TILE_WIDTH} 100%`, 
         backgroundRepeat: "repeat-x",
         backgroundPosition: "left bottom", 
@@ -87,18 +82,14 @@ export default function FlyRunnerGame() {
             ? `moveWallLeft ${animationDuration} linear infinite`
             : `moveWallRight ${animationDuration} linear infinite`,
 
-        // THE GEOMETRY FIX:
-        // 1. Move the wall from the center (50%) to the edge of the road (30vw).
-        // 2. Rotate it 90 degrees to form a wall.
+        // THE GEOMETRY FIX (Center Pivot):
+        // 1. translate(-50%, -50%): Centers the div itself.
+        // 2. translateX(offset): Pushes it left/right to the road edge.
+        // 3. rotateY(90deg): Turns it into a wall.
         transform: isLeft
-            ? `translateX(-30vw) translateY(-50%) rotateY(90deg)`  // Left Wall
-            : `translateX(30vw) translateY(-50%) rotateY(-90deg)`, // Right Wall
+            ? `translate(-50%, -50%) translateX(-30vw) rotateY(90deg)`  // Left Wall
+            : `translate(-50%, -50%) translateX(30vw) rotateY(-90deg)`, // Right Wall
 
-        // ROTATION PIVOT:
-        // We pivot around the edge closest to the camera/center to prevent it swinging wildly.
-        transformOrigin: isLeft ? "left center" : "right center",
-        
-        // Ensure it renders even if rotated "backwards"
         backfaceVisibility: "visible", 
         filter: "brightness(0.9)"
       };
@@ -121,7 +112,7 @@ export default function FlyRunnerGame() {
       <div style={{
           position: "absolute", inset: 0,
           perspective: "350px", 
-          perspectiveOrigin: "50% 35%", // High Horizon (Maintains your preferred floor height)
+          perspectiveOrigin: "50% 30%", // Camera Height
           overflow: "hidden",
           pointerEvents: "none",
       }}>
@@ -137,15 +128,14 @@ export default function FlyRunnerGame() {
         <div style={{
             position: "absolute", inset: 0,
             transformStyle: "preserve-3d",
-            transform: "rotateX(5deg)" // Subtle curve down
+            transform: "rotateX(5deg)" // Curve down
         }}>
 
-            {/* ROAD (NARROWED) */}
+            {/* ROAD */}
             <div style={{
                 position: "absolute", top: "50%", left: "50%",
                 
-                // WIDTH FIX: Reduced from 100vw to 60vw. 
-                // This makes the street narrower so it doesn't clip off the sides.
+                // WIDTH: 60vw (Matches the wall offset of +/- 30vw)
                 width: "60vw", 
                 
                 height: "800vh",
