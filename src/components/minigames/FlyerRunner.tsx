@@ -4,8 +4,9 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 
 // --- CONFIGURATION ---
-const WALL_LEFT_IMG = "/texture_leeds_left_v3.jpg";
-const WALL_RIGHT_IMG = "/texture_leeds_right_v3.jpg";
+// RESTORED TO .PNG AS REQUESTED
+const WALL_LEFT_IMG = "/texture_leeds_left_v3.png";
+const WALL_RIGHT_IMG = "/texture_leeds_right_v3.png";
 const TILE_WIDTH = "2912px"; 
 
 export default function FlyRunnerGame() {
