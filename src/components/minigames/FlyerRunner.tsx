@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+// CHECK THIS IMPORT:
 import TunnelView from "@/components/TunnelView"; 
 import Link from "next/link";
 
@@ -12,21 +13,24 @@ export default function FlyRunnerPage() {
   const mainRef = useRef<HTMLElement>(null);
   const SHIP_SPEED = 10;
 
+  // 1. GAME LOGIC
   const startGame = () => {
     if (!isPlaying) {
-      console.log("🚀 STARTING ENGINE...");
+      console.log("🚀 FORCE START");
       setIsPlaying(true);
-      // Force focus after a micro-delay to ensure UI updates don't steal it
+      // Force focus to capture arrow keys
       setTimeout(() => mainRef.current?.focus(), 10);
     }
   };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Spacebar starts game
       if (e.code === "Space" && !isPlaying) {
         startGame();
       }
 
+      // Movement
       if (isPlaying) {
         if (e.key === "ArrowLeft" || e.key === "a") {
           setShipPosition(prev => Math.max(prev - SHIP_SPEED, -90));
@@ -57,39 +61,48 @@ export default function FlyRunnerPage() {
         }}
     >
       
-      {/* 1. GAME VIEW */}
+      {/* 2. THE VISUAL COMPONENT */}
       <TunnelView isPlaying={isPlaying} />
 
-      {/* 2. CLICK-TO-START OVERLAY (Z-Index 9999 ensures it catches clicks) */}
+      {/* 3. CLICK-TO-START ZONE (Fixes "Not Startable") */}
       {!isPlaying && (
         <div 
             onClick={(e) => {
-                e.stopPropagation(); // Prevent bubbling issues
+                e.stopPropagation(); 
                 startGame();
             }}
             style={{
-                position: "absolute", inset: 0, zIndex: 9999,
-                cursor: "pointer", background: "transparent" // Invisible but clickable
+                position: "absolute", 
+                inset: 0, 
+                zIndex: 9999, // TOP LAYER
+                cursor: "pointer", 
+                background: "rgba(0,0,0,0.1)", // Slight tint to show it's active
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
             }}
-        />
+        >
+             {/* Fallback Text in case UI below is missing */}
+             <div style={{ color: "transparent" }}>CLICK TO START</div>
+        </div>
       )}
 
-      {/* 3. SHIP */}
+      {/* 4. THE SHIP */}
       <div style={{
             position: "absolute", bottom: "15%", left: "50%",
             transform: `translateX(-50%) translateX(${shipPosition * 4}px)`, 
             transition: "transform 0.05s linear", zIndex: 50, pointerEvents: "none"
       }}>
-        <div style={{ position: "relative" }}>
-            <div style={{
-                width: "0", height: "0", 
-                borderLeft: "20px solid transparent", borderRight: "20px solid transparent",
-                borderBottom: "60px solid #ff00ff", filter: "drop-shadow(0 0 10px #ff00ff)"
-            }} />
-        </div>
+        <div style={{ 
+            width: "0", height: "0", 
+            borderLeft: "20px solid transparent", 
+            borderRight: "20px solid transparent",
+            borderBottom: "60px solid #ff00ff", // Neon Pink Ship
+            filter: "drop-shadow(0 0 10px #ff00ff)"
+        }} />
       </div>
 
-      {/* 4. UI LAYER */}
+      {/* 5. UI LAYER */}
       <div style={{ position: "relative", zIndex: 100, height: "100%", pointerEvents: "none" }}>
         
         {/* Top Bar */}
@@ -103,12 +116,12 @@ export default function FlyRunnerPage() {
             
             <Link href="/" style={{ pointerEvents: "auto", textDecoration: "none" }}>
                 <div style={{ background: "white", color: "black", padding: "4px 12px", border: "2px solid black", fontWeight: "bold", cursor: "pointer" }}>
-                    [X] EXIT
+                    EXIT
                 </div>
             </Link>
         </div>
 
-        {/* Start Text */}
+        {/* Start Screen Text */}
         {!isPlaying && (
             <div style={{
                 position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
@@ -118,7 +131,7 @@ export default function FlyRunnerPage() {
                     CALL LANE
                 </h1>
                 <div className="animate-pulse" style={{ background: "black", color: "#0f0", padding: "15px 30px", fontSize: "1.5rem", border: "2px solid #0f0", display: "inline-block", boxShadow: "0 0 20px #0f0" }}>
-                    PRESS [SPACE] TO START
+                    CLICK TO START
                 </div>
             </div>
         )}
