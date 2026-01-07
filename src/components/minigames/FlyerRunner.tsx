@@ -4,11 +4,8 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 
 // --- CONFIGURATION ---
-// Updated to .jpg as per your upload
 const WALL_LEFT_IMG = "/texture_leeds_left_v3.jpg";
 const WALL_RIGHT_IMG = "/texture_leeds_right_v3.jpg";
-
-// EXACT dimensions from your file info (2912px width)
 const TILE_WIDTH = "2912px"; 
 
 export default function FlyRunnerGame() {
@@ -18,8 +15,6 @@ export default function FlyRunnerGame() {
   
   const mainRef = useRef<HTMLElement>(null);
 
-  // SPEED CURVE: 
-  // Starts at 3s (Walk), ramps to 0.8s (Sprint)
   const calculateSpeed = () => {
     if (!isPlaying) return "0s";
     const maxSpeed = 0.8; 
@@ -57,46 +52,49 @@ export default function FlyRunnerGame() {
     return () => clearInterval(interval);
   }, [isPlaying]);
 
-  // --- STYLE GENERATORS ---
+  // --- WALL STYLE GENERATOR ---
+  const getWallStyle = (img: string, side: 'left' | 'right'): React.CSSProperties => {
+      const isLeft = side === 'left';
+      return {
+        position: "absolute", 
+        // VERTICAL ANCHOR: Bottom of the wall sits at the vertical center of the screen (Horizon)
+        bottom: "50%", 
+        
+        // HORIZONTAL ANCHOR:
+        // Left wall starts at the left edge of the road (-50vw from center)
+        // Right wall starts at the right edge of the road (+50vw from center)
+        left: "50%",
+        
+        // SIZE
+        width: "1000vw", // Long enough to fade into distance
+        height: "500vh", // Tall enough to never clip top
+        
+        backgroundImage: `url('${img}')`,
+        imageRendering: "pixelated",
+        backgroundSize: `${TILE_WIDTH} auto`, 
+        backgroundRepeat: "repeat-x",
+        backgroundPosition: "left bottom", 
 
-  const getWallStyle = (img: string, side: 'left' | 'right'): React.CSSProperties => ({
-      position: "absolute", 
-      top: "50%", 
-      left: "50%",
-      
-      // SIZE: Massive height (500vh) to ensure roofs go up forever
-      // Width: 1000vw to buffer the loop
-      width: "1000vw", 
-      height: "500vh", 
-      
-      backgroundImage: `url('${img}')`,
-      // PIXEL ART SETTINGS:
-      imageRendering: "pixelated", // Crisp edges
-      backgroundSize: `${TILE_WIDTH} auto`, // Preserve Aspect Ratio
-      backgroundRepeat: "repeat-x",
-      
-      // ALIGNMENT:
-      // Anchor the shop floor to the bottom of the container
-      backgroundPosition: "left bottom", 
+        willChange: "background-position", 
+        animation: isLeft 
+            ? `moveWallLeft ${animationDuration} linear infinite`
+            : `moveWallRight ${animationDuration} linear infinite`,
 
-      willChange: "background-position", 
-      animation: side === 'left' 
-        ? `moveWallLeft ${animationDuration} linear infinite`
-        : `moveWallRight ${animationDuration} linear infinite`,
+        // TRANSFORM ORIGIN (The Hinge)
+        // We hinge the walls on the bottom-center.
+        transformOrigin: "left bottom",
 
-      // PLACEMENT:
-      // translateY(-100%): This aligns the BOTTOM of the wall div with the center of the screen.
-      // translateZ(-50vw): Pushes walls apart to create the street width (100vw total).
-      // rotateY: 90deg (Perfectly straight parallel walls)
-      transform: `
-        translate(-50%, -100%) 
-        rotateY(${side === 'left' ? '90deg' : '-90deg'}) 
-        translateZ(-50vw) 
-      `,
-      
-      backfaceVisibility: "hidden",
-      filter: "brightness(0.9)" // Slight dim for depth
-  });
+        // ROTATION
+        // 1. Move it to the correct side of the road (margin-left)
+        // 2. Rotate it 90deg to face the road.
+        transform: isLeft
+            ? `translateX(-50vw) rotateY(90deg)` // Move Left, Face Right
+            : `translateX(50vw) rotateY(-90deg)`, // Move Right, Face Left
+        
+        backfaceVisibility: "hidden",
+        filter: "brightness(0.9)"
+      };
+  };
 
   return (
     <main 
@@ -106,16 +104,16 @@ export default function FlyRunnerGame() {
         style={{ 
             width: "100vw", height: "100vh", position: "relative", 
             overflow: "hidden", outline: "none", userSelect: "none",
-            background: "#87CEEB" // Sky Blue
+            background: "#87CEEB" 
         }}
     >
       {/* ========================================================
-          VISUAL ENGINE CONTAINER
+          VISUAL ENGINE
          ======================================================== */}
       <div style={{
           position: "absolute", inset: 0,
-          perspective: "350px", // Standard FOV
-          perspectiveOrigin: "50% 35%", // High Horizon (View from slightly above head height)
+          perspective: "350px", 
+          perspectiveOrigin: "50% 35%", // High Horizon (Keep Floor Visible)
           overflow: "hidden",
           pointerEvents: "none",
       }}>
@@ -127,23 +125,21 @@ export default function FlyRunnerGame() {
             `}
         </style>
 
-        {/* WORLD WRAPPER (The Curve Mechanic)
-            We rotate this entire container on X to tilt the world "down" into the distance.
-        */}
+        {/* WORLD WRAPPER (Tilt Mechanic) */}
         <div style={{
             position: "absolute", inset: 0,
             transformStyle: "preserve-3d",
-            transform: "rotateX(5deg)" // THE SUBWAY SURFERS CURVE TILT
+            transform: "rotateX(5deg)" // The "Subway Surfers" Curve
         }}>
 
-            {/* ROAD PLANE */}
+            {/* ROAD */}
             <div style={{
                 position: "absolute", top: "50%", left: "50%",
-                width: "100vw", // Matches wall separation
-                height: "800vh", // Long road
+                width: "100vw", 
+                height: "800vh",
                 backgroundColor: "#222",
                 
-                // 5 LANES = 4 DIVIDERS
+                // 5 LANES
                 backgroundImage: `
                     linear-gradient(to right, 
                         transparent 19%, rgba(255,255,255,0.4) 20%, transparent 21%,
@@ -156,10 +152,7 @@ export default function FlyRunnerGame() {
                 backgroundSize: "100% 100%, 100% 40px",
                 imageRendering: "pixelated",
 
-                // PLACEMENT:
-                // rotateX(90deg): Flat floor relative to the world wrapper.
-                // translateZ(0px): Sits exactly at the center axis.
-                // The walls are anchored to this same axis (-100% Y), so they meet perfectly.
+                // GEOMETRY
                 transform: "translate(-50%, -50%) rotateX(90deg)",
                 
                 animation: `moveRoad ${isPlaying ? "0.2s" : "0s"} linear infinite`,
@@ -171,13 +164,10 @@ export default function FlyRunnerGame() {
 
         </div>
 
-        {/* HORIZON MASK (The "Fade Away")
-            This sits ON TOP of the 3D world (in screen space) and masks the geometry 
-            where it hits the horizon line, completing the curved illusion.
-        */}
+        {/* HORIZON MASK */}
         <div style={{
             position: "absolute", inset: 0,
-            background: "linear-gradient(to bottom, #87CEEB 0%, #87CEEB 35%, transparent 60%)",
+            background: "linear-gradient(to bottom, #87CEEB 0%, #87CEEB 30%, transparent 60%)",
             zIndex: 10
         }} />
 
@@ -190,19 +180,15 @@ export default function FlyRunnerGame() {
       {/* SHIP */}
       <div style={{
             position: "absolute", bottom: "10%", left: "50%",
-            // 100vw / 5 lanes = 20vw per lane step
             transform: `translateX(-50%) translateX(${lane * 20}vw)`, 
             transition: "transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
             zIndex: 50, pointerEvents: "none"
       }}>
-        {/* Shadow */}
         <div style={{
             position: "absolute", bottom: "-20px", left: "50%", transform: "translateX(-50%) scale(1, 0.3)",
             width: "80px", height: "80px", background: "black", borderRadius: "50%", opacity: 0.5,
             filter: "blur(8px)"
         }} />
-
-        {/* Ship Body */}
         <div style={{ 
             width: "0", height: "0", 
             borderLeft: "30px solid transparent", 
@@ -221,14 +207,12 @@ export default function FlyRunnerGame() {
                 </span> 
                 SCORE: {score.toString().padStart(5, '0')}
             </div>
-            
             <Link href="/" style={{ pointerEvents: "auto", textDecoration: "none" }}>
                 <div style={{ background: "white", color: "black", padding: "4px 12px", border: "2px solid black", fontWeight: "bold", cursor: "pointer" }}>
                     EXIT
                 </div>
             </Link>
         </div>
-
         {!isPlaying && (
             <div style={{
                 position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
