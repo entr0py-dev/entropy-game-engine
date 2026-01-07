@@ -6,18 +6,22 @@ import Link from "next/link";
 // --- CONFIGURATION ---
 const WALL_LEFT_IMG = "/texture_leeds_left_v3.png";
 const WALL_RIGHT_IMG = "/texture_leeds_right_v3.png";
+
+// IMPORTANT: This must match your image width exactly to prevent skipping.
+// Since we are scaling height to 100%, the width might scale dynamically.
+// We use a large percent for movement to ensure smooth loops.
 const TILE_WIDTH = "3072px"; 
 
 export default function FlyRunnerGame() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [score, setScore] = useState(0);
-  const [shipPosition, setShipPosition] = useState(0);
+  
+  // LANE SYSTEM: -2 (Far Left) to 2 (Far Right)
+  // 0 is Center. 5 Lanes Total.
+  const [lane, setLane] = useState(0); 
   
   const mainRef = useRef<HTMLElement>(null);
-  
-  // Faster, snappier movement for lane switching feel
-  const SHIP_SPEED = 15; 
-  const animationDuration = isPlaying ? "3.0s" : "0s";
+  const animationDuration = isPlaying ? "4s" : "0s"; // Slower loop for smoothness
 
   // --- GAME START ---
   const startGame = () => {
@@ -35,11 +39,10 @@ export default function FlyRunnerGame() {
 
       if (isPlaying) {
         if (e.key === "ArrowLeft" || e.key === "a") {
-          // Limit movement to stay roughly within the 5 lanes (-100 to 100)
-          setShipPosition(prev => Math.max(prev - SHIP_SPEED, -90));
+          setLane(prev => Math.max(prev - 1, -2)); // Cap at Lane -2
         }
         if (e.key === "ArrowRight" || e.key === "d") {
-          setShipPosition(prev => Math.min(prev + SHIP_SPEED, 90));
+          setLane(prev => Math.min(prev + 1, 2));  // Cap at Lane 2
         }
       }
     };
@@ -54,22 +57,25 @@ export default function FlyRunnerGame() {
     return () => clearInterval(interval);
   }, [isPlaying]);
 
-  // --- WALL STYLES ---
+  // --- WALL STYLE ---
   const getWallStyle = (img: string, side: 'left' | 'right'): React.CSSProperties => ({
       position: "absolute", 
       top: "50%", 
       left: "50%",
       
-      // CONTAINER SIZE
-      width: "800vw", 
-      height: "150vh", // Tall enough for roofs
+      // CONTAINER: Massive height to ensure roofs are never clipped
+      width: "1000vw", 
+      height: "400vh", 
       
       backgroundImage: `url('${img}')`,
       
-      // TEXTURE: Keep aspect ratio, anchor to bottom (road level)
-      backgroundSize: `${TILE_WIDTH} auto`, 
+      // FIX FOR CLIPPING & STRETCHING:
+      // Height = 100% (Fills the 400vh container).
+      // Width = Auto (Scales proportionally so buildings don't look fat/thin).
+      backgroundSize: `auto 100%`, 
+      
       backgroundRepeat: "repeat-x",
-      backgroundPosition: "left bottom", 
+      backgroundPosition: "left bottom", // Anchor to road
 
       // ANIMATION
       willChange: "background-position", 
@@ -77,20 +83,15 @@ export default function FlyRunnerGame() {
         ? `moveWallLeft ${animationDuration} linear infinite`
         : `moveWallRight ${animationDuration} linear infinite`,
 
-      // TRANSFORM (The "Funnel" Effect)
-      // 1. rotateY: We use 89deg instead of 90deg. This angles the walls slightly OUTWARD
-      //    as they go back, creating the "Tighter close, Wider far" perspective.
-      // 2. translateZ: Brought closer (-55vw) to tighten the immediate play area.
-      // 3. translateY: -55% moves the wall DOWN relative to center. 
-      //    Since image is bottom-aligned, this pulls the "roofs" down into view.
+      // TRANSFORM (The "Funnel" Perspective)
       transform: `
         translate(-50%, -55%) 
         rotateY(${side === 'left' ? '89deg' : '-89deg'}) 
-        translateZ(-55vw)
+        translateZ(-50vw)
       `,
       
       backfaceVisibility: "hidden",
-      filter: "brightness(0.95)"
+      filter: "brightness(0.8)" // Slightly dark to blend with fog
   });
 
   return (
@@ -101,8 +102,7 @@ export default function FlyRunnerGame() {
         style={{ 
             width: "100vw", height: "100vh", position: "relative", 
             overflow: "hidden", outline: "none", userSelect: "none",
-            // SKYBOX RESTORED
-            background: "linear-gradient(to bottom, #87CEEB 0%, #E0F7FA 60%, #fff 100%)"
+            background: "black" // PURE BLACK BACKGROUND (No Blue Vignette)
         }}
     >
       {/* ========================================================
@@ -110,7 +110,7 @@ export default function FlyRunnerGame() {
          ======================================================== */}
       <div style={{
           position: "absolute", inset: 0,
-          perspective: "300px", // Lower perspective = More dramatic/Arcade feel
+          perspective: "300px", 
           overflow: "hidden",
           pointerEvents: "none"
       }}>
@@ -131,27 +131,32 @@ export default function FlyRunnerGame() {
             `}
         </style>
 
-        {/* ROAD (With 5 Lanes) */}
+        {/* ROAD (5 LANES) */}
         <div style={{
             position: "absolute", top: "50%", left: "50%",
-            width: "160vw", // Narrower road to fit the "Tight" feel
+            width: "180vw", // Width to accommodate 5 lanes comfortably
             height: "800vh",
-            backgroundColor: "#333",
+            backgroundColor: "#222",
             
-            // 1. ASPHALT TEXTURE (Noise)
-            // 2. LANE MARKERS (4 dashed lines creating 5 lanes)
+            // 5 LANES = 4 DIVIDER LINES
+            // We use a repeating gradient to draw the lines
             backgroundImage: `
-                repeating-linear-gradient(to right, transparent 0%, transparent 19.5%, rgba(255,255,255,0.5) 19.5%, rgba(255,255,255,0.5) 20.5%, transparent 20.5%, transparent 40%),
-                repeating-linear-gradient(to bottom, #444 0, #444 1px, transparent 1px, transparent 4px)
+                linear-gradient(to right, 
+                    transparent 19%, rgba(255,255,255,0.3) 20%, transparent 21%,
+                    transparent 39%, rgba(255,255,255,0.3) 40%, transparent 41%,
+                    transparent 59%, rgba(255,255,255,0.3) 60%, transparent 61%,
+                    transparent 79%, rgba(255,255,255,0.3) 80%, transparent 81%
+                ),
+                repeating-linear-gradient(to bottom, #333 0, #333 20px, #222 20px, #222 40px)
             `,
             backgroundSize: "100% 100%, 100% 40px",
             
-            transform: "translate(-50%, -50%) rotateX(90deg) translateZ(-25vh)", // Lowered road slightly
-            animation: `moveRoad ${isPlaying ? "0.15s" : "0s"} linear infinite`, // Faster road texture
+            transform: "translate(-50%, -50%) rotateX(90deg) translateZ(-25vh)",
+            animation: `moveRoad ${isPlaying ? "0.2s" : "0s"} linear infinite`,
             
-            // Fade road into distance
-            maskImage: "linear-gradient(to bottom, black 0%, black 60%, transparent 100%)",
-            WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 60%, transparent 100%)"
+            // FOG MASK: Fades the road into the black background
+            maskImage: "linear-gradient(to bottom, black 0%, black 40%, transparent 100%)",
+            WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 40%, transparent 100%)"
         }} />
 
         {/* LEFT WALL */}
@@ -160,10 +165,10 @@ export default function FlyRunnerGame() {
         {/* RIGHT WALL */}
         <div style={getWallStyle(WALL_RIGHT_IMG, 'right')} />
 
-        {/* HORIZON FOG (White/Blue to match sky) */}
+        {/* DISTANCE FOG (Radial - Black Only) */}
         <div style={{
             position: "absolute", inset: 0,
-            background: "radial-gradient(circle at center, transparent 30%, #E0F7FA 90%)",
+            background: "radial-gradient(circle at center, transparent 20%, #000 90%)",
             zIndex: 10
         }} />
       </div>
@@ -175,40 +180,39 @@ export default function FlyRunnerGame() {
       {/* SHIP */}
       <div style={{
             position: "absolute", bottom: "10%", left: "50%",
-            // Multiplier 2.5 matches the new narrower road width
-            transform: `translateX(-50%) translateX(${shipPosition * 2.5}px)`, 
-            transition: "transform 0.08s linear", // Snappier transition
+            // Lane Calculation: Move 12vw per lane step
+            transform: `translateX(-50%) translateX(${lane * 12}vw)`, 
+            transition: "transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275)", // Bouncy snap
             zIndex: 50, pointerEvents: "none"
       }}>
-        {/* Shadow */}
+        {/* Glow */}
         <div style={{
-            position: "absolute", bottom: "-20px", left: "50%", transform: "translateX(-50%)",
-            width: "40px", height: "10px", background: "rgba(0,0,0,0.6)", borderRadius: "50%",
-            filter: "blur(4px)"
+            position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+            width: "100px", height: "100px", background: "radial-gradient(circle, rgba(0,255,153,0.4) 0%, transparent 70%)"
         }} />
         
-        {/* Ship Body */}
+        {/* Ship Model */}
         <div style={{ 
             width: "0", height: "0", 
-            borderLeft: "25px solid transparent", 
-            borderRight: "25px solid transparent",
-            borderBottom: "70px solid #ff0055", // Hot Pink
-            filter: "drop-shadow(0 0 5px rgba(255,0,85,0.5))"
+            borderLeft: "30px solid transparent", 
+            borderRight: "30px solid transparent",
+            borderBottom: "80px solid #00ff99", 
+            filter: "drop-shadow(0 0 10px #00ff99)"
         }} />
       </div>
 
       {/* HUD */}
       <div style={{ position: "relative", zIndex: 100, height: "100%", pointerEvents: "none" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", padding: "20px", color: "black", fontFamily: "monospace", textShadow: "1px 1px 0 #fff" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "20px", color: "white", fontFamily: "monospace", textShadow: "2px 2px 0 #000" }}>
             <div>
-                <span style={{ background: isPlaying ? "red" : "gray", color: "white", padding: "2px 6px", marginRight: "10px", borderRadius: "4px" }}>
+                <span style={{ background: isPlaying ? "red" : "gray", padding: "2px 6px", marginRight: "10px" }}>
                   {isPlaying ? "LIVE" : "PAUSED"}
                 </span> 
-                <strong>SCORE: {score.toString().padStart(5, '0')}</strong>
+                SCORE: {score.toString().padStart(5, '0')}
             </div>
             
             <Link href="/" style={{ pointerEvents: "auto", textDecoration: "none" }}>
-                <div style={{ background: "black", color: "white", padding: "4px 12px", border: "2px solid white", fontWeight: "bold", cursor: "pointer" }}>
+                <div style={{ background: "white", color: "black", padding: "4px 12px", border: "2px solid black", fontWeight: "bold", cursor: "pointer" }}>
                     EXIT
                 </div>
             </Link>
@@ -217,13 +221,16 @@ export default function FlyRunnerGame() {
         {!isPlaying && (
             <div style={{
                 position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-                textAlign: "center", color: "black", fontFamily: "monospace", pointerEvents: "none", width: "100%"
+                textAlign: "center", color: "white", fontFamily: "monospace", pointerEvents: "none", width: "100%"
             }}>
-                <h1 style={{ fontSize: "5rem", margin: "0 0 20px 0", textShadow: "4px 4px 0px #fff", letterSpacing: "-2px" }}>
+                <h1 style={{ fontSize: "5rem", margin: "0 0 20px 0", textShadow: "4px 4px 0px #000", letterSpacing: "-2px" }}>
                     CALL LANE
                 </h1>
-                <div className="animate-pulse" style={{ background: "white", color: "black", padding: "15px 30px", fontSize: "1.5rem", border: "4px solid black", display: "inline-block", boxShadow: "4px 4px 0 black" }}>
+                <div className="animate-pulse" style={{ background: "black", color: "#00ff99", padding: "15px 30px", fontSize: "1.5rem", border: "2px solid #00ff99", display: "inline-block", boxShadow: "0 0 20px #00ff99" }}>
                     CLICK TO START
+                </div>
+                <div style={{ marginTop: "20px", fontSize: "0.8rem", opacity: 0.7 }}>
+                    Use Left/Right Arrows to Switch Lanes
                 </div>
             </div>
         )}
