@@ -17,14 +17,14 @@ export default function FlyRunnerGame() {
   
   const mainRef = useRef<HTMLElement>(null);
 
-  // SPEED SYNC FIX:
-  // Drastically lowered the duration values.
-  // 0.5s is a brisk jog. 0.1s is full sprint.
-  // This ensures the loop speed matches the intense perspective.
+  // SPEED FIX:
+  // Doubled the values to slow the loop down by half.
+  // 1.0s = Start Speed (Jog)
+  // 0.2s = Max Speed (Sprint)
   const calculateSpeed = () => {
     if (!isPlaying) return "0s";
-    const maxSpeed = 0.1; 
-    const minSpeed = 0.5;
+    const maxSpeed = 0.2; 
+    const minSpeed = 1.0;
     const decay = Math.min(1, score / 5000); 
     const current = minSpeed - (decay * (minSpeed - maxSpeed));
     return `${current}s`;
@@ -79,27 +79,25 @@ export default function FlyRunnerGame() {
 
         willChange: "background-position", 
         
-        // DIRECTION FIX:
-        // Changed animation names to ensure they flow TOWARDS the camera.
         animation: isLeft 
             ? `moveWallForward ${animationDuration} linear infinite`
             : `moveWallForward ${animationDuration} linear infinite`,
 
-        // --- GEOMETRY & FOREGROUND FIX ---
+        // --- GEOMETRY & NARROWING FIX ---
+        // Road Width = 50vw.
+        // Wall Offset = 25vw (Half of 50vw).
         
         ...(isLeft ? {
             right: "50%",
-            marginRight: "30vw",
+            marginRight: "25vw", // Narrowed from 30vw
             transformOrigin: "right bottom",
-            // FOREGROUND FIX:
-            // translateZ(1000px) pulls the entire infinite wall 1000px TOWARDS/BEHIND the camera.
-            // This ensures the wall starts behind your head, filling the immediate corners of the screen.
+            // Foreground fill: translateZ(1000px)
             transform: "translateZ(1000px) rotateY(-90deg)"
         } : {
             left: "50%",
-            marginLeft: "30vw",
+            marginLeft: "25vw", // Narrowed from 30vw
             transformOrigin: "left bottom",
-            // FOREGROUND FIX:
+            // Foreground fill: translateZ(1000px)
             transform: "translateZ(1000px) rotateY(90deg)"
         }),
 
@@ -122,15 +120,10 @@ export default function FlyRunnerGame() {
       <div style={{
           position: "absolute", inset: 0,
           perspective: "300px", 
-          perspectiveOrigin: "50% 25%", // Safe Patch Height
+          perspectiveOrigin: "50% 25%", 
           overflow: "hidden",
           pointerEvents: "none",
       }}>
-        {/* DIRECTION FIX:
-            Keyframes updated. 
-            Moving from 0 to TILE_WIDTH creates the slide effect. 
-            If it feels backwards, simply swap 'from' and 'to' values here.
-        */}
         <style>
             {`
             @keyframes moveWallForward { 
@@ -154,7 +147,10 @@ export default function FlyRunnerGame() {
             {/* ROAD */}
             <div style={{
                 position: "absolute", top: "50%", left: "50%",
-                width: "60vw", 
+                
+                // WIDTH FIX: Narrowed from 60vw to 50vw
+                width: "50vw", 
+                
                 height: "800vh",
                 backgroundColor: "#222",
                 
@@ -171,7 +167,7 @@ export default function FlyRunnerGame() {
                 imageRendering: "pixelated",
 
                 transform: "translate(-50%, -50%) rotateX(90deg)",
-                animation: `moveRoad ${isPlaying ? "0.1s" : "0s"} linear infinite`,
+                animation: `moveRoad ${isPlaying ? "0.2s" : "0s"} linear infinite`,
             }} />
 
             {/* WALLS */}
@@ -184,7 +180,9 @@ export default function FlyRunnerGame() {
       {/* SHIP & HUD */}
       <div style={{
             position: "absolute", bottom: "10%", left: "50%",
-            transform: `translateX(-50%) translateX(${lane * 12}vw)`, 
+            // MOVEMENT FIX: 
+            // 50vw / 5 lanes = 10vw per lane.
+            transform: `translateX(-50%) translateX(${lane * 10}vw)`, 
             transition: "transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
             zIndex: 50, pointerEvents: "none"
       }}>
