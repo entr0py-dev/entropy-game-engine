@@ -6,8 +6,6 @@ import Link from "next/link";
 // --- CONFIGURATION ---
 const WALL_LEFT_IMG = "/texture_leeds_left_v3.png";
 const WALL_RIGHT_IMG = "/texture_leeds_right_v3.png";
-
-// TILE_WIDTH: 728px (Scaled for crisp look)
 const TILE_WIDTH = "728px"; 
 
 export default function FlyRunnerGame() {
@@ -17,10 +15,7 @@ export default function FlyRunnerGame() {
   
   const mainRef = useRef<HTMLElement>(null);
 
-  // SPEED FIX:
-  // Doubled the values to slow the loop down by half.
-  // 1.0s = Start Speed (Jog)
-  // 0.2s = Max Speed (Sprint)
+  // SPEED (Jog to Sprint)
   const calculateSpeed = () => {
     if (!isPlaying) return "0s";
     const maxSpeed = 0.2; 
@@ -64,9 +59,7 @@ export default function FlyRunnerGame() {
       
       return {
         position: "absolute", 
-        bottom: "50%", // Safe Patch Alignment
-        
-        // DIMENSIONS:
+        bottom: "50%", 
         width: "50000px", 
         height: "500px", 
         
@@ -79,25 +72,22 @@ export default function FlyRunnerGame() {
 
         willChange: "background-position", 
         
+        // DIRECTION FIX:
+        // Left Wall: Uses standard forward animation.
+        // Right Wall: Uses REVERSE animation because it is rotated 180 degrees relative to the left.
         animation: isLeft 
             ? `moveWallForward ${animationDuration} linear infinite`
-            : `moveWallForward ${animationDuration} linear infinite`,
+            : `moveWallReverse ${animationDuration} linear infinite`,
 
-        // --- GEOMETRY & NARROWING FIX ---
-        // Road Width = 50vw.
-        // Wall Offset = 25vw (Half of 50vw).
-        
         ...(isLeft ? {
             right: "50%",
-            marginRight: "25vw", // Narrowed from 30vw
+            marginRight: "25vw", // 50vw Road Width / 2
             transformOrigin: "right bottom",
-            // Foreground fill: translateZ(1000px)
             transform: "translateZ(1000px) rotateY(-90deg)"
         } : {
             left: "50%",
-            marginLeft: "25vw", // Narrowed from 30vw
+            marginLeft: "25vw", 
             transformOrigin: "left bottom",
-            // Foreground fill: translateZ(1000px)
             transform: "translateZ(1000px) rotateY(90deg)"
         }),
 
@@ -126,13 +116,22 @@ export default function FlyRunnerGame() {
       }}>
         <style>
             {`
+            /* LEFT WALL (Standard Slide) */
             @keyframes moveWallForward { 
                 from { background-position-x: 0px; } 
                 to { background-position-x: ${TILE_WIDTH}; } 
             }
+            
+            /* RIGHT WALL (Inverted Slide to match perspective) */
+            @keyframes moveWallReverse { 
+                from { background-position-x: 0px; } 
+                to { background-position-x: -${TILE_WIDTH}; } 
+            }
+
+            /* ROAD ANIMATION (Moves the scanlines) */
             @keyframes moveRoad { 
                 from { background-position-y: 0px; } 
-                to { background-position-y: 200px; } 
+                to { background-position-y: 80px; } 
             }
             `}
         </style>
@@ -141,33 +140,55 @@ export default function FlyRunnerGame() {
         <div style={{
             position: "absolute", inset: 0,
             transformStyle: "preserve-3d",
-            transform: "rotateX(10deg)" // Safe Patch Curve
+            transform: "rotateX(10deg)" 
         }}>
 
-            {/* ROAD */}
+            {/* ROAD (8-BIT RETRO STYLE) */}
             <div style={{
                 position: "absolute", top: "50%", left: "50%",
-                
-                // WIDTH FIX: Narrowed from 60vw to 50vw
                 width: "50vw", 
-                
                 height: "800vh",
-                backgroundColor: "#222",
+                
+                // BASE ASPHALT COLOR
+                backgroundColor: "#333",
                 
                 backgroundImage: `
-                    linear-gradient(to right, 
-                        transparent 19%, rgba(255,255,255,0.5) 20%, transparent 21%,
-                        transparent 39%, rgba(255,255,255,0.5) 40%, transparent 41%,
-                        transparent 59%, rgba(255,255,255,0.5) 60%, transparent 61%,
-                        transparent 79%, rgba(255,255,255,0.5) 80%, transparent 81%
+                    /* 1. LANE MARKERS (Chunky White Dashes) */
+                    linear-gradient(90deg, 
+                        transparent 19%, #fff 19%, #fff 21%, transparent 21%,
+                        transparent 39%, #fff 39%, #fff 41%, transparent 41%,
+                        transparent 59%, #fff 59%, #fff 61%, transparent 61%,
+                        transparent 79%, #fff 79%, #fff 81%, transparent 81%
                     ),
-                    repeating-linear-gradient(to bottom, #2a2a2a 0, #2a2a2a 20px, #222 20px, #222 40px)
+                    
+                    /* 2. YELLOW CURBS (Arcade Style Borders) */
+                    linear-gradient(90deg, 
+                        #fb0 0%, #fb0 2%, #000 2%, #000 4%, transparent 4%, 
+                        transparent 96%, #000 96%, #000 98%, #fb0 98%, #fb0 100%
+                    ),
+
+                    /* 3. ASPHALT SCANLINES (Repeating horizontal bars for speed feel) */
+                    repeating-linear-gradient(
+                        0deg,
+                        transparent 0px,
+                        transparent 40px,
+                        rgba(0,0,0,0.3) 40px,
+                        rgba(0,0,0,0.3) 80px
+                    )
                 `,
-                backgroundSize: "100% 100%, 100% 40px",
+                
+                // SIZE: 
+                // Layer 1 (Lanes) = 100% Width
+                // Layer 2 (Curbs) = 100% Width
+                // Layer 3 (Scanlines) = 80px tall pattern
+                backgroundSize: "100% 80px, 100% 80px, 100% 80px",
+                
                 imageRendering: "pixelated",
 
                 transform: "translate(-50%, -50%) rotateX(90deg)",
-                animation: `moveRoad ${isPlaying ? "0.2s" : "0s"} linear infinite`,
+                
+                // ROAD MOVEMENT
+                animation: `moveRoad ${isPlaying ? "0.3s" : "0s"} linear infinite`,
             }} />
 
             {/* WALLS */}
@@ -180,8 +201,6 @@ export default function FlyRunnerGame() {
       {/* SHIP & HUD */}
       <div style={{
             position: "absolute", bottom: "10%", left: "50%",
-            // MOVEMENT FIX: 
-            // 50vw / 5 lanes = 10vw per lane.
             transform: `translateX(-50%) translateX(${lane * 10}vw)`, 
             transition: "transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
             zIndex: 50, pointerEvents: "none"
