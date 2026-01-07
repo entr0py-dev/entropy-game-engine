@@ -15,8 +15,8 @@ interface TunnelViewProps {
 
 export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = false, speedModifier = 1 }) => {
   
-  // SPEED ADJUSTMENT: Increased from 0.5s to 3s for playable speed
-  const baseDuration = 3.0; 
+  // SPEED: 1.0s is the "Goldilocks" zone (Faster than 3s, slower than 0.5s)
+  const baseDuration = 1.0; 
   const calculatedDuration = isPlaying ? (baseDuration / speedModifier) : 0;
   const animationDuration = calculatedDuration > 0 ? `${calculatedDuration}s` : "0s";
 
@@ -27,7 +27,7 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = false, speed
         inset: 0,
         backgroundColor: "#87CEEB",
         overflow: "hidden",
-        perspective: "300px", // Slightly relaxed perspective to help with distortion
+        perspective: "350px", // Increased slightly to widen the feel
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -57,17 +57,23 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = false, speed
           .tunnel-plane {
             position: absolute;
             backface-visibility: hidden;
-            transform-style: preserve-3d; /* Helps with clipping */
+            transform-style: preserve-3d;
             image-rendering: pixelated; 
           }
 
           .wall-base {
-            /* CLIPPING FIX: Height: auto allows texture to dictate size, but fixed height is safer for animation */
-            /* We use background-size contain or specific width to ensure aspect ratio */
-            background-size: ${TILE_SIZE} 100%; 
+            /* 1. TEXTURE HEIGHT FIX: 
+               We force the image to be ~120vh tall so it doesn't look stretched 
+               inside the massive container. */
+            background-size: ${TILE_SIZE} 120vh; 
+            
             background-repeat: repeat-x; 
-            /* IMPORTANT: Align image to bottom so shops touch the road */
+            
+            /* 2. ALIGNMENT:
+               Keep image at the bottom of the container. 
+               We will move the whole container UP in the transform to align shops with road. */
             background-position-y: bottom; 
+            
             filter: brightness(0.9); 
           }
 
@@ -83,8 +89,7 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = false, speed
              background-size: 20px 100%; 
              background-position: center top; 
              background-repeat: no-repeat;
-             /* Road moves slightly faster to match wall speed */
-             animation: moveRoad ${isPlaying ? "0.6s" : "0s"} linear infinite; 
+             animation: moveRoad ${isPlaying ? "0.2s" : "0s"} linear infinite; 
           }
         `}
       </style>
@@ -120,13 +125,19 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = false, speed
         style={{
           backgroundImage: `url('${WALL_LEFT_IMG}')`,
           width: TUNNEL_DEPTH,
-          // CLIPPING FIX: Increased height drastically. 
-          // Since background aligns to bottom, this just adds empty space (or sky) 
-          // to the top, preventing the building roofs from being cut off by the div boundary.
-          height: "500vh", 
+          
+          // HEIGHT: Tall enough to show full skyscrapers without clipping tops
+          height: "400vh", 
+
           top: "50%",
           left: "50%",
-          transform: "translate(-50%, -50%) rotateY(90deg) translateZ(-80vw)",
+          
+          // TRANSFORM EXPLANATION:
+          // translate(-50%, -82%): This moves the wall UP. Since the image is at the bottom,
+          // this aligns the shop-fronts with the road.
+          // translateZ(-120vw): Pushes walls wider apart (Corridor Width).
+          transform: "translate(-50%, -82%) rotateY(90deg) translateZ(-120vw)",
+          
           animation: `moveWallLeft ${animationDuration} linear infinite`
         }}
       />
@@ -137,10 +148,10 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = false, speed
         style={{
           backgroundImage: `url('${WALL_RIGHT_IMG}')`,
           width: TUNNEL_DEPTH,
-          height: "500vh", // CLIPPING FIX
+          height: "400vh", 
           top: "50%",
           left: "50%",
-          transform: "translate(-50%, -50%) rotateY(-90deg) translateZ(-80vw)",
+          transform: "translate(-50%, -82%) rotateY(-90deg) translateZ(-120vw)",
           animation: `moveWallRight ${animationDuration} linear infinite`
         }}
       />
@@ -150,7 +161,7 @@ export const TunnelView: React.FC<TunnelViewProps> = ({ isPlaying = false, speed
         style={{
             position: 'absolute',
             inset: 0,
-            background: 'radial-gradient(circle at center, transparent 0%, rgba(135, 206, 235, 1) 90%)',
+            background: 'radial-gradient(circle at center, transparent 30%, rgba(135, 206, 235, 1) 90%)',
             pointerEvents: 'none',
             zIndex: 10
         }}
