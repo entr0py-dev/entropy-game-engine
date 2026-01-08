@@ -9,29 +9,30 @@ const WALL_RIGHT_IMG = "/texture_leeds_right_v3.png";
 const TILE_WIDTH = "728px"; 
 
 // GAMEPLAY CONFIG
-const SPAWN_DISTANCE = -5000; 
+// Spawn closer so user sees them immediately
+const SPAWN_DISTANCE = -2000; 
 const DESPAWN_Z = 200; 
-const MOVE_SPEED_START = 40; // Pixels per frame
-const MOVE_SPEED_MAX = 80;
 
-// --- TREATISE SECTION 3.3: PATTERN GENERATION ---
-// "The environment is constructed from pre-designed Chunks"
-type PatternRow = number[]; // [0, 1, 0, 0, 2] -> 0=Empty, 1=Barrier, 2=Coin
-const PATTERNS: PatternRow[] = [
-    [0, 0, 0, 0, 0], // Rest
-    [1, 0, 0, 0, 1], // Wide Goal
-    [0, 1, 0, 1, 0], // Checkerboard
-    [0, 0, 1, 0, 0], // Center Hazard
-    [2, 2, 2, 2, 2], // Coin Row
-    [1, 1, 0, 1, 1], // The "Gap" (Hard)
-    [0, 2, 0, 2, 0], // Coin Slalom
+// MOVEMENT SPEEDS (Pixels per frame)
+const MOVE_SPEED_START = 20; 
+const MOVE_SPEED_MAX = 60;
+
+// PATTERNS (0=Empty, 1=Barrier, 2=Entrobuck)
+const PATTERNS: number[][] = [
+    [0, 0, 0, 0, 0],
+    [1, 0, 0, 0, 1],
+    [0, 1, 0, 1, 0],
+    [0, 0, 1, 0, 0],
+    [2, 2, 2, 2, 2], // Money Row
+    [1, 1, 0, 1, 1], // The "Gap"
+    [0, 2, 0, 2, 0], 
 ];
 
 interface GameItem {
   id: number;
   lane: number; 
   z: number;    
-  type: 'BARRIER' | 'COIN';
+  type: 'BARRIER' | 'ENTROBUCK';
   active: boolean;
 }
 
@@ -44,32 +45,23 @@ export default function FlyRunnerGame() {
   const [items, setItems] = useState<GameItem[]>([]);
   
   const mainRef = useRef<HTMLElement>(null);
-  
-  // FIX: Added initial value '0' to satisfy TypeScript constraints
   const requestRef = useRef<number>(0); 
   const lastTimeRef = useRef<number>(0);
+  const speedRef = useRef(MOVE_SPEED_START); 
   
-  const speedRef = useRef(0); 
-  
-  // PATTERN STATE
   const patternQueue = useRef<number[]>([]); 
 
-  // --- PATTERN GENERATOR (Section 3.3) ---
-  // Fills the queue with lane data from predefined patterns
+  // --- PATTERN GENERATOR ---
   const getNextLaneFromPattern = useCallback(() => {
     if (patternQueue.current.length === 0) {
-        // Load a new random pattern chunk
         const patternIndex = Math.floor(Math.random() * PATTERNS.length);
         const chunk = PATTERNS[patternIndex];
-        // Convert the row [1,0,0,1,0] into separate spawn instructions
-        // We push lane indices into the queue. 
-        // 99 = No Spawn for that slot
         chunk.forEach((val, index) => {
-            const laneIndex = index - 2; // Convert 0..4 to -2..2
-            if (val === 1) patternQueue.current.push(laneIndex); // Barrier
-            else if (val === 2) patternQueue.current.push(laneIndex + 100); // Coin marker
+            const laneIndex = index - 2; 
+            if (val === 1) patternQueue.current.push(laneIndex); 
+            else if (val === 2) patternQueue.current.push(laneIndex + 100); 
         });
-        // Add breathing room between chunks
+        patternQueue.current.push(99); 
         patternQueue.current.push(99); 
         patternQueue.current.push(99); 
     }
@@ -79,19 +71,20 @@ export default function FlyRunnerGame() {
   // --- INITIALIZE POOL ---
   useEffect(() => {
     const initialItems: GameItem[] = [];
-    for (let i = 0; i < 15; i++) {
+    // Initialize 20 items to ensure continuous flow
+    for (let i = 0; i < 20; i++) {
       initialItems.push({
         id: i,
         lane: 0, 
-        z: SPAWN_DISTANCE - (i * 500), 
+        z: SPAWN_DISTANCE - (i * 300), 
         type: 'BARRIER',
-        active: false // Start inactive, let the recycle logic activate them
+        active: false 
       });
     }
     setItems(initialItems);
   }, []);
 
-  // SPEED CURVE
+  // SPEED CALCULATION
   const calculateAnimationSpeed = () => {
     if (!isPlaying) return "0s";
     const maxSpeed = 0.5; 
@@ -118,10 +111,9 @@ export default function FlyRunnerGame() {
       setGameOver(false);
       setScore(0);
       setLane(0);
-      // Reset items to back
       setItems(prev => prev.map((item, i) => ({
         ...item,
-        z: SPAWN_DISTANCE - (i * 500),
+        z: SPAWN_DISTANCE - (i * 300),
         active: false
       })));
       setIsPlaying(true);
@@ -158,19 +150,15 @@ export default function FlyRunnerGame() {
           let newLane = item.lane;
           let newType = item.type;
 
-          // RECYCLE LOGIC
+          // RECYCLE
           if (newZ > DESPAWN_Z) {
             newZ = SPAWN_DISTANCE; 
-            
-            // PATTERN GENERATION (Section 3.3)
-            // Instead of Math.random(), we ask the pattern queue
             const spawnData = getNextLaneFromPattern();
-            
             if (spawnData === 99) {
-                newActive = false; // Empty slot
+                newActive = false; 
             } else if (spawnData >= 100) {
                 newActive = true;
-                newType = 'COIN';
+                newType = 'ENTROBUCK';
                 newLane = spawnData - 100;
             } else {
                 newActive = true;
@@ -179,12 +167,12 @@ export default function FlyRunnerGame() {
             }
           }
 
-          // COLLISION LOGIC
+          // COLLISION
           if (newActive && newZ > -60 && newZ < 60 && item.lane === lane) {
             if (item.type === 'BARRIER') {
               setGameOver(true);
               setIsPlaying(false);
-            } else if (item.type === 'COIN') {
+            } else if (item.type === 'ENTROBUCK') {
               setScore(s => s + 500);
               newActive = false; 
             }
@@ -209,16 +197,10 @@ export default function FlyRunnerGame() {
   const getWallStyle = (img: string, side: 'left' | 'right'): React.CSSProperties => {
       const isLeft = side === 'left';
       return {
-        position: "absolute", 
-        bottom: "50%", 
-        width: "50000px", 
-        height: "500px", 
-        backgroundImage: `url('${img}')`,
-        imageRendering: "pixelated",
-        backgroundSize: `${TILE_WIDTH} 100%`, 
-        backgroundRepeat: "repeat-x",
-        backgroundPosition: "left bottom", 
-        willChange: "background-position", 
+        position: "absolute", bottom: "50%", width: "50000px", height: "500px", 
+        backgroundImage: `url('${img}')`, imageRendering: "pixelated",
+        backgroundSize: `${TILE_WIDTH} 100%`, backgroundRepeat: "repeat-x",
+        backgroundPosition: "left bottom", willChange: "background-position", 
         animation: isLeft 
             ? `moveWallForward ${calculateAnimationSpeed()} linear infinite`
             : `moveWallReverse ${calculateAnimationSpeed()} linear infinite`,
@@ -229,8 +211,7 @@ export default function FlyRunnerGame() {
             left: "50%", marginLeft: "25vw", transformOrigin: "left bottom",
             transform: "translateZ(1000px) rotateY(90deg)"
         }),
-        backfaceVisibility: "visible", 
-        filter: "brightness(0.95)"
+        backfaceVisibility: "visible", filter: "brightness(0.95)"
       };
   };
 
@@ -248,6 +229,7 @@ export default function FlyRunnerGame() {
       <div style={{
           position: "absolute", inset: 0,
           perspective: "300px", 
+          // HIGH CAMERA + TILT = CURVATURE
           perspectiveOrigin: "50% 20%", 
           overflow: "hidden",
           pointerEvents: "none",
@@ -257,11 +239,11 @@ export default function FlyRunnerGame() {
             @keyframes moveWallForward { from { background-position-x: 0px; } to { background-position-x: ${TILE_WIDTH}; } }
             @keyframes moveWallReverse { from { background-position-x: 0px; } to { background-position-x: -${TILE_WIDTH}; } }
             @keyframes moveRoad { from { background-position-y: 0px; } to { background-position-y: 80px; } }
-            @keyframes spin { 0% { transform: rotateY(0deg); } 100% { transform: rotateY(360deg); } }
+            @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
             `}
         </style>
 
-        {/* WORLD WRAPPER */}
+        {/* WORLD WRAPPER - TILTED */}
         <div style={{
             position: "absolute", inset: 0,
             transformStyle: "preserve-3d",
@@ -293,18 +275,22 @@ export default function FlyRunnerGame() {
             <div style={getWallStyle(WALL_LEFT_IMG, 'left')} />
             <div style={getWallStyle(WALL_RIGHT_IMG, 'right')} />
 
-            {/* OBJECTS */}
+            {/* --- OBJECT LAYER --- */}
             {items.map((item) => {
               if (!item.active) return null;
-              const xPos = item.lane * 10; 
+              // ALIGNMENT FIX: 
+              // Increased spreading from 10vw to 12.5vw to push outer lanes wider
+              const xPos = item.lane * 12.5; 
               
               return (
                 <div key={item.id} style={{
                     position: "absolute", top: "50%", left: "50%",
                     width: "80px", height: "80px",
+                    // Move Z forward to ensure visibility
                     transform: `translate3d(calc(-50% + ${xPos}vw), -50%, ${item.z}px)`,
                     display: "flex", justifyContent: "center", alignItems: "flex-end",
-                    willChange: "transform"
+                    willChange: "transform",
+                    transformStyle: "preserve-3d" // Ensure they render in 3D
                 }}>
                     {item.type === 'BARRIER' ? (
                         <div style={{
@@ -313,11 +299,18 @@ export default function FlyRunnerGame() {
                             border: "4px solid black", boxShadow: "0 10px 20px rgba(0,0,0,0.5)"
                         }} />
                     ) : (
+                        // ENTROBUCK (Green Digital Bill)
                         <div style={{
-                            width: "40px", height: "40px",
-                            background: "#FFD700", borderRadius: "50%", border: "4px solid #FFA500",
-                            boxShadow: "0 0 15px #FFD700", animation: "spin 1s linear infinite"
-                        }} />
+                            width: "50px", height: "30px",
+                            background: "#00ff99",
+                            border: "2px solid #fff",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            color: "#000", fontWeight: "bold", fontSize: "12px", fontFamily: "monospace",
+                            boxShadow: "0 0 10px #00ff99",
+                            animation: "float 1s ease-in-out infinite"
+                        }}>
+                            $$$
+                        </div>
                     )}
                 </div>
               );
@@ -329,7 +322,9 @@ export default function FlyRunnerGame() {
       {!gameOver && (
           <div style={{
                 position: "absolute", bottom: "10%", left: "50%",
-                transform: `translateX(-50%) translateX(${lane * 10}vw)`, 
+                // ALIGNMENT FIX: 
+                // Increased lane step to 12.5vw to match the objects/road
+                transform: `translateX(-50%) translateX(${lane * 12.5}vw)`, 
                 transition: "transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
                 zIndex: 50, pointerEvents: "none"
           }}>
